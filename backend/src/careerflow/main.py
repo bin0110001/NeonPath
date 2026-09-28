@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from careerflow.api.health import router as health_router
+from careerflow.api.profiles import router as profiles_router
 from careerflow.settings import get_settings
 
 
@@ -16,6 +17,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health_router)
+    app.include_router(profiles_router, prefix="/api/v1")
     return app
 
 

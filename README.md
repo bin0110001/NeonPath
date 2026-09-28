@@ -2,7 +2,7 @@
 
 CareerFlow is a self-hosted job discovery, evaluation, and application-preparation platform. It automates organization and preparation while keeping people in control of external actions.
 
-This repository currently implements Phase 0: a runnable monorepo foundation. Profile, job, and AI workflows intentionally come in later vertical slices.
+This repository implements the runnable foundation and Profile Core. Job and AI workflows intentionally come in later vertical slices.
 
 ## Start locally
 
@@ -48,7 +48,7 @@ The backend keeps domain, application, and infrastructure concerns separate. Fas
 
 ## Status
 
-The plan is tracked in [careerflow_automation_implementation_plan.md](careerflow_automation_implementation_plan.md). Phase 0 is implemented; future work should proceed as coherent vertical slices, beginning with Profile Core.
+The plan is tracked in [careerflow_automation_implementation_plan.md](careerflow_automation_implementation_plan.md). Phase 0 and the initial Profile Core are implemented; future work should proceed with the Manual Job Inbox slice.
 
 ## License
 

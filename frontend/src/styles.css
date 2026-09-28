@@ -8,3 +8,9 @@ body { margin: 0; }
 main { max-width: 48rem; margin: 15vh auto; padding: 2rem; }
 h1 { color: #73e0d0; font-size: 3rem; margin-bottom: 0.5rem; }
 p { color: #c6d1e2; font-size: 1.125rem; line-height: 1.6; }
+.profile-layout { display: grid; grid-template-columns: minmax(12rem, 1fr) 2fr; gap: 2rem; margin-top: 2rem; }
+aside { border-right: 1px solid #31405a; padding-right: 1rem; }
+button, input { display: block; box-sizing: border-box; margin: .5rem 0; padding: .5rem; width: 100%; }
+button { cursor: pointer; background: #224d64; border: 1px solid #73e0d0; color: #edf3ff; }
+label { display: block; margin-top: 1.5rem; }
+@media (max-width: 600px) { .profile-layout { grid-template-columns: 1fr; } aside { border: 0; padding: 0; } }
