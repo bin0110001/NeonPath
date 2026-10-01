@@ -1,0 +1,179 @@
+[
+  {
+    "title": "Principal AI Engineer",
+    "company": "TechInnovate Inc.",
+    "company_domain": "techinnovate.com",
+    "description_text": "We are seeking a Principal AI Engineer to lead our AI initiatives and drive innovation in machine learning and artificial intelligence. The ideal candidate will have deep expertise in LLMs, MLOps, and AI system architecture.",
+    "description_html": "<p>We are seeking a Principal AI Engineer to lead our AI initiatives and drive innovation in machine learning and artificial intelligence. The ideal candidate will have deep expertise in LLMs, MLOps, and AI system architecture.</p>",
+    "location_text": "San Francisco, CA (Remote)",
+    "remote_type": "REMOTE",
+    "employment_type": "FULL_TIME",
+    "salary_min": 180000,
+    "salary_max": 250000,
+    "salary_currency": "USD",
+    "salary_period": "YEAR",
+    "canonical_url": "https://techinnovate.com/careers/principal-ai-engineer",
+    "source": {
+      "adapter": "manual",
+      "external_id": "principal-ai-engineer-001",
+      "source_url": "https://techinnovate.com/careers/principal-ai-engineer",
+      "raw_payload": {
+        "title": "Principal AI Engineer",
+        "company": "TechInnovate Inc.",
+        "description": "We are seeking a Principal AI Engineer to lead our AI initiatives and drive innovation in machine learning and artificial intelligence."
+      }
+    },
+    "requirements": [
+      {
+        "type": "skill",
+        "normalized_text": "Python",
+        "source_text": "Python programming",
+        "required_level": "EXPERT",
+        "category": "programming_language",
+        "confidence": 0.95
+      },
+      {
+        "type": "skill",
+        "normalized_text": "Machine Learning",
+        "source_text": "Machine Learning and Deep Learning",
+        "required_level": "EXPERT",
+        "category": "technical_skill",
+        "confidence": 0.9
+      },
+      {
+        "type": "experience",
+        "normalized_text": "LLM Applications",
+        "source_text": "Experience building LLM applications and systems",
+        "required_level": "ADVANCED",
+        "category": "experience",
+        "confidence": 0.85
+      },
+      {
+        "type": "education",
+        "normalized_text": "Master's in Computer Science",
+        "source_text": "MS or PhD in Computer Science or related field",
+        "required_level": "PREFERRED",
+        "category": "education",
+        "confidence": 0.7
+      }
+    ]
+  },
+  {
+    "title": "Senior Data Scientist",
+    "company": "DataDriven Solutions",
+    "company_domain": "datadrivensolutions.com",
+    "description_text": "Join our analytics team as a Senior Data Scientist to build predictive models and derive insights from complex datasets. You'll work with Python, SQL, and modern ML frameworks to solve business problems.",
+    "description_html": "<p>Join our analytics team as a Senior Data Scientist to build predictive models and derive insights from complex datasets. You'll work with Python, SQL, and modern ML frameworks to solve business problems.</p>",
+    "location_text": "New York, NY (Hybrid)",
+    "remote_type": "HYBRID",
+    "employment_type": "FULL_TIME",
+    "salary_min": 120000,
+    "salary_max": 160000,
+    "salary_currency": "USD",
+    "salary_period": "YEAR",
+    "canonical_url": "https://datadrivensolutions.com/jobs/senior-data-scientist",
+    "source": {
+      "adapter": "manual",
+      "external_id": "senior-data-scientist-002",
+      "source_url": "https://datadrivensolutions.com/jobs/senior-data-scientist",
+      "raw_payload": {
+        "title": "Senior Data Scientist",
+        "company": "DataDriven Solutions",
+        "description": "Join our analytics team as a Senior Data Scientist to build predictive models and derive insights from complex datasets."
+      }
+    },
+    "requirements": [
+      {
+        "type": "skill",
+        "normalized_text": "Python",
+        "source_text": "Python programming",
+        "required_level": "EXPERT",
+        "category": "programming_language",
+        "confidence": 0.9
+      },
+      {
+        "type": "skill",
+        "normalized_text": "SQL",
+        "source_text": "SQL and database querying",
+        "required_level": "EXPERT",
+        "category": "programming_language",
+        "confidence": 0.85
+      },
+      {
+        "type": "skill",
+        "normalized_text": "Statistical Analysis",
+        "source_text": "Statistical modeling and analysis",
+        "required_level": "ADVANCED",
+        "category": "analytical_skill",
+        "confidence": 0.8
+      },
+      {
+        "type": "experience",
+        "normalized_text": "Machine Learning",
+        "source_text": "Applied machine learning in business contexts",
+        "required_level": "ADVANCED",
+        "category": "experience",
+        "confidence": 0.75
+      }
+    ]
+  },
+  {
+    "title": "Software Engineer II",
+    "company": "WebDev Agency",
+    "company_domain": "webdevagency.com",
+    "description_text": "Mid-level software engineer position focusing on web application development using JavaScript/TypeScript, React, and Node.js. Work in an agile environment building customer-facing applications.",
+    "description_html": "<p>Mid-level software engineer position focusing on web application development using JavaScript/TypeScript, React, and Node.js. Work in an agile environment building customer-facing applications.</p>",
+    "location_text": "Boston, MA (Onsite)",
+    "remote_type": "ONSITE",
+    "employment_type": "FULL_TIME",
+    "salary_min": 90000,
+    "salary_max": 120000,
+    "salary_currency": "USD",
+    "salary_period": "YEAR",
+    "canonical_url": "https://webdevagency.com/careers/software-engineer-ii",
+    "source": {
+      "adapter": "manual",
+      "external_id": "software-engineer-ii-003",
+      "source_url": "https://webdevagency.com/careers/software-engineer-ii",
+      "raw_payload": {
+        "title": "Software Engineer II",
+        "company": "WebDev Agency",
+        "description": "Mid-level software engineer position focusing on web application development using JavaScript/TypeScript, React, and Node.js."
+      }
+    },
+    "requirements": [
+      {
+        "type": "skill",
+        "normalized_text": "JavaScript",
+        "source_text": "JavaScript and ES6+",
+        "required_level": "EXPERT",
+        "category": "programming_language",
+        "confidence": 0.9
+      },
+      {
+        "type": "skill",
+        "normalized_text": "TypeScript",
+        "source_text": "TypeScript for large-scale applications",
+        "required_level": "ADVANCED",
+        "category": "programming_language",
+        "confidence": 0.85
+      },
+      {
+        "type": "skill",
+        "normalized_text": "React",
+        "source_text": "React.js and modern frontend development",
+        "required_level": "ADVANCED",
+        "category": "frontend_framework",
+        "confidence": 0.8
+      },
+      {
+        "type": "skill",
+        "normalized_text": "Node.js",
+        "source_text": "Node.js and backend development",
+        "required_level": "ADVANCED",
+        "category": "backend_framework",
+        "confidence": 0.75
+      }
+    ]
+  }
+]

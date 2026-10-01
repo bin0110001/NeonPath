@@ -144,6 +144,17 @@ class RoleFamilyModel(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class RoleTargetModel(Base):
+    __tablename__ = "role_targets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    title_pattern: Mapped[str | None] = mapped_column(String(200))
+    include_keywords: Mapped[list[str]] = mapped_column(JSON, default=list)
+    exclude_keywords: Mapped[list[str]] = mapped_column(JSON, default=list)
+    target_seniority: Mapped[list[str]] = mapped_column(JSON, default=list)
+
+
 class SearchPreferenceModel(Base):
     __tablename__ = "search_preferences"
 
@@ -169,3 +180,109 @@ class ScoringPreferenceModel(Base):
 
     profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), primary_key=True)
     weights: Mapped[dict[str, float]] = mapped_column(JSON, default=dict)
+
+
+# Job-related models
+class JobModel(Base):
+    __tablename__ = "jobs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    canonical_url: Mapped[str | None] = mapped_column(String(500))
+    title: Mapped[str] = mapped_column(String(200))
+    company: Mapped[str] = mapped_column(String(200))
+    company_domain: Mapped[str | None] = mapped_column(String(100))
+    description_text: Mapped[str] = mapped_column(Text)
+    description_html: Mapped[str | None] = mapped_column(Text)
+    location_text: Mapped[str | None] = mapped_column(String(200))
+    remote_type: Mapped[str | None] = mapped_column(String(32))  # REMOTE, HYBRID, ONSITE
+    employment_type: Mapped[str | None] = mapped_column(String(64))  # FULL_TIME, PART_TIME, CONTRACT, etc.
+    salary_min: Mapped[float | None] = mapped_column(Float)
+    salary_max: Mapped[float | None] = mapped_column(Float)
+    salary_currency: Mapped[str | None] = mapped_column(String(3))  # USD, EUR, etc.
+    salary_period: Mapped[str | None] = mapped_column(String(20))  # YEAR, MONTH, HOUR
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    discovered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    source_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_status: Mapped[str | None] = mapped_column(String(32))  # ACTIVE, EXPIRED, FILLED, etc.
+    fingerprint: Mapped[str | None] = mapped_column(String(64))  # For deduplication
+    raw_metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # Workflow status
+    status: Mapped[str] = mapped_column(String(32), default="DISCOVERED")  # DISCOVERED, INGESTED, NORMALIZED, DEDUPLICATED, ENRICHED, EVALUATED, READY_FOR_REVIEW, SHORTLISTED, REJECTED, SAVED, ARCHIVED
+
+    # Relationships
+    source_records: Mapped[list["JobSourceRecordModel"]] = relationship(back_populates="job", cascade="all, delete-orphan")
+    requirements: Mapped[list["JobRequirementModel"]] = relationship(back_populates="job", cascade="all, delete-orphan")
+    evaluations: Mapped[list["JobEvaluationModel"]] = relationship(back_populates="job", cascade="all, delete-orphan")
+    status_history: Mapped[list["JobStatusHistoryModel"]] = relationship(back_populates="job", cascade="all, delete-orphan")
+
+
+class JobSourceRecordModel(Base):
+    __tablename__ = "job_source_records"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    adapter: Mapped[str] = mapped_column(String(100))  # e.g., "manual", "rss", "greenhouse"
+    external_id: Mapped[str | None] = mapped_column(String(200))
+    source_url: Mapped[str | None] = mapped_column(String(500))
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    discovered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    job: Mapped[JobModel] = relationship(back_populates="source_records")
+
+
+class JobRequirementModel(Base):
+    __tablename__ = "job_requirements"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    type: Mapped[str] = mapped_column(String(32))  # skill, experience, education, etc.
+    normalized_text: Mapped[str] = mapped_column(String(200))
+    source_text: Mapped[str] = mapped_column(Text)
+    required_level: Mapped[str | None] = mapped_column(String(50))  # BEGINNER, INTERMEDIATE, EXPERT, etc.
+    category: Mapped[str | None] = mapped_column(String(100))  # Matches categories from spec
+    confidence: Mapped[float | None] = mapped_column(Float)  # 0.0 to 1.0
+
+    # Relationships
+    job: Mapped[JobModel] = relationship(back_populates="requirements")
+
+
+class JobEvaluationModel(Base):
+    __tablename__ = "job_evaluations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    evaluator_version: Mapped[str] = mapped_column(String(50))
+    model_provider: Mapped[str | None] = mapped_column(String(100))
+    model_name: Mapped[str | None] = mapped_column(String(100))
+    overall_score: Mapped[float] = mapped_column(Float)  # 0.0 to 1.0
+    confidence: Mapped[float | None] = mapped_column(Float)
+    dimension_scores_json: Mapped[dict[str, float]] = mapped_column(JSON, default=dict)
+    strengths: Mapped[list[str]] = mapped_column(JSON, default=list)
+    transferable_matches: Mapped[list[str]] = mapped_column(JSON, default=list)
+    gaps: Mapped[list[str]] = mapped_column(JSON, default=list)
+    blockers: Mapped[list[str]] = mapped_column(JSON, default=list)
+    unknowns: Mapped[list[str]] = mapped_column(JSON, default=list)
+    explanation: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    job: Mapped[JobModel] = relationship(back_populates="evaluations")
+
+
+class JobStatusHistoryModel(Base):
+    __tablename__ = "job_status_history"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    old_status: Mapped[str | None] = mapped_column(String(32))
+    new_status: Mapped[str] = mapped_column(String(32))
+    actor: Mapped[str | None] = mapped_column(String(100))  # user, system, etc.
+    reason: Mapped[str | None] = mapped_column(Text)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    job: Mapped[JobModel] = relationship(back_populates="status_history")

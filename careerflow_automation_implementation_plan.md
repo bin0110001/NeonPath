@@ -10,7 +10,7 @@
 
 ## 1. Goals
 
-- [ ] Support multiple independent career profiles in one installation.
+- [x] Support multiple independent career profiles in one installation.
 - [ ] Discover jobs from pluggable sources.
 - [ ] Normalize all jobs into one canonical model.
 - [ ] Deduplicate the same opening found through multiple sources.
@@ -23,7 +23,7 @@
 - [ ] Run without an AI provider for core functionality.
 - [ ] Support both hosted and local/OpenAI-compatible LLM providers.
 - [ ] Be suitable as a public portfolio project using only fictional/demo data.
-- [ ] Run with both `podman compose` and `docker compose`.
+- [x] Run with both `podman compose` and `docker compose`.
 
 ### Explicit non-goals for early releases
 
@@ -1830,20 +1830,20 @@ start a healthy application from a clean clone.
 
 **Goal:** Generic, reusable profile model.
 
-- [ ] Profile CRUD.
-- [ ] Contact information.
-- [ ] Experience.
-- [ ] Achievement inventory.
-- [ ] Skills and aliases.
-- [ ] Education.
-- [ ] Portfolio items.
-- [ ] Role families.
-- [ ] Search preferences.
-- [ ] Scoring preferences.
-- [ ] Profile UI.
-- [ ] Versioned JSON import/export.
-- [ ] Fictional demo profiles.
-- [ ] Cross-profile isolation tests.
+- [x] Profile CRUD.
+- [x] Contact information.
+- [x] Experience.
+- [x] Achievement inventory.
+- [x] Skills and aliases.
+- [x] Education.
+- [x] Portfolio items.
+- [x] Role families.
+- [x] Search preferences.
+- [x] Scoring preferences.
+- [x] Profile UI.
+- [x] Versioned JSON import/export.
+- [x] Fictional demo profiles.
+- [x] Cross-profile isolation tests.
 
 ### Acceptance criteria
 
@@ -1855,21 +1855,21 @@ Two profiles can coexist with entirely different careers, targets, preferences, 
 
 **Goal:** End-to-end job workflow before external integrations.
 
-- [ ] Canonical Job model.
-- [ ] JobSourceRecord.
-- [ ] Manual description import.
-- [ ] Optional URL capture.
-- [ ] Fixture JSON import.
-- [ ] Job inbox UI.
-- [ ] Job detail page.
-- [ ] Workflow state machine.
-- [ ] Shortlist/reject/save actions.
-- [ ] Status history.
-- [ ] Raw snapshot retention.
+- [x] Canonical Job model.
+- [x] JobSourceRecord.
+- [x] Manual description import.
+- [x] Optional URL capture.
+- [x] Fixture JSON import.
+- [x] Job inbox UI.
+- [x] Job detail page.
+- [x] Workflow state machine.
+- [x] Shortlist/reject/save actions.
+- [x] Status history.
+- [x] Raw snapshot retention.
 
 ### Acceptance criteria
 
-A user can paste a job description, inspect it, and move it through the review workflow.
+A user can paste a job description, inspect it, and move it through the review workflow (shortlist, save, reject).
 
 ---
 
@@ -1877,8 +1877,8 @@ A user can paste a job description, inspect it, and move it through the review w
 
 **Goal:** Useful product even with AI disabled.
 
-- [ ] Title matching.
-- [ ] Role-family matching.
+- [x] Title matching.
+- [x] Role-family matching.
 - [ ] Location rules.
 - [ ] Remote rules.
 - [ ] Compensation rules.
