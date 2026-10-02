@@ -1,5 +1,5 @@
 {
-  "factory_version": "0.3.1",
+  "factory_version": "0.3.2",
   "files": [
     {
       "path": ".ai/factory/automations/changes-requested.json",
@@ -23,27 +23,27 @@
     },
     {
       "path": ".ai/factory/policies/definition-of-done.md",
-      "sha256": "81a1144fd18d55f9a196dfb746f868611819aba0bc22c9e3f6897d3b50e4e57c"
+      "sha256": "2e0d721310467c7728453bcf0ef69bc3e0a3100badc77e06261ab6f528bdf17e"
     },
     {
       "path": ".ai/factory/policies/definition-of-ready.md",
-      "sha256": "2ef6f05e1c282b6469ab9e713b28531980c4297b3d5f041e780ba082ce6c3bd0"
+      "sha256": "8ecb0443c44c73f248f41585d1b91b1ff75c17b216d3a0c38842529d5e0c4cf2"
     },
     {
       "path": ".ai/factory/policies/escalation.md",
-      "sha256": "f10079a49835e237b46591d879af8563fe04ad2588ae2e25c9d0908afd6ea52c"
+      "sha256": "7002f6ed88ed343edf9afadf0984e85f3f0a8e2180fa2d06eafc979d874b1e87"
     },
     {
       "path": ".ai/factory/policies/labels.yaml",
-      "sha256": "e933f806f5d408ebf163b19b564cb85bcdd6f928b10332b3b7c0c845965f9829"
+      "sha256": "9f26090cf14df6bab1e96e48b32894269daa542f662352e94fd4d60bd41b4432"
     },
     {
       "path": ".ai/factory/policies/retry.yaml",
-      "sha256": "8686d02e7a44fc08654733ece2d70c6e419070281c0514430c16e75c2d02e823"
+      "sha256": "5c7f062be69943b47e4d82c50bbf8033763315f1d5eb03f1d2e00226b2e8fd30"
     },
     {
       "path": ".ai/factory/policies/risk.yaml",
-      "sha256": "9559bf7c6af3db33f1341f5845d833bbb97c18df2dd1ce67caaf88ddd609fd6e"
+      "sha256": "63dc5b22c9cd081d575033230ca1c90ab6e89b50dff9325938b412f3a437c584"
     },
     {
       "path": ".ai/factory/schemas/factory.config.schema.json",
@@ -67,59 +67,59 @@
     },
     {
       "path": ".ai/factory/scripts/create-labels.ps1",
-      "sha256": "816550c6dac8f583da22b3f87f6a5d97abbf5eefaffde71aa39c9728b4546e86"
+      "sha256": "bb845208946a694ef126ac8ca6d71f545c9351ad49071bea189c8300177e80ad"
     },
     {
       "path": ".ai/factory/scripts/route-state.ps1",
-      "sha256": "9aa9043421cb9297db8891231a693a3493a623c1af1002d573cf61479b5b7a66"
+      "sha256": "582cf8e7d7b68dfbcdea1fbb04e5d5b31cea9ca1847ddfbfaf24f36767bab84b"
     },
     {
       "path": ".ai/factory/scripts/sync-automations.ps1",
-      "sha256": "64942d3f4da9ed92e96a20ca20b7a1dad2ba491d1f9b4b2b5fd84be4ad58ed62"
+      "sha256": "eb2c003e4bccc681fa1b45dd725612eeb29d389f783b7ba9eb36ebbbcadd3a9f"
     },
     {
       "path": ".ai/factory/scripts/validate-result.ps1",
-      "sha256": "f781c98b5ea67fc449c614a7a2b2861ef9d75f2a44c85ebe179041cff713313e"
+      "sha256": "d5f023dc039a29473a87376badd388b9b40e9a43bf21dba98e8433b12c2e6e92"
     },
     {
       "path": ".ai/skills/factory-fix/SKILL.md",
-      "sha256": "97457379a26429e0ced7491fa257d4589e0f85aaf6925eb717cee543dcf9c9c1"
+      "sha256": "976531d4b9fca307e6818281c19fd0e8708fa6f71fe1de3f107c1341ba3be665"
     },
     {
       "path": ".ai/skills/factory-implement/SKILL.md",
-      "sha256": "d332739ce9f797b9a80e3dab5f7d4a5f02998e72b2b43c4aa08d36251a5f883a"
+      "sha256": "ce817d0a34c1461bef83587b8bbda5951aeb796e364c6befa90c1b64d1ae111d"
     },
     {
       "path": ".ai/skills/factory-investigate/SKILL.md",
-      "sha256": "d3210e4af05bfcd299c317818b69cb2b1057ccc172af3133d79ce38bf8e5fe02"
+      "sha256": "1dda377218b6e878266de7e4e0ef7f547e1e576923fe6cbecfe672111e4fad4d"
     },
     {
       "path": ".ai/skills/factory-plan/SKILL.md",
-      "sha256": "d5bf1c04cc874699e73281b1b7032b537214fc600df738b9ccedec0ec693c0ec"
+      "sha256": "b2b3ca5856f47a05b9b80062967e78c98956e5fbecf957832825dacb507fac3f"
     },
     {
       "path": ".ai/skills/factory-review/SKILL.md",
-      "sha256": "665b6df02c05d8fc0f07497d7166f7b1cf275b954de6fecba0b5c7b3104bf2b2"
+      "sha256": "3c622af60272eda533a96da3ccd26cf44df21ba60e2aaa8ea122a922a3c3b739"
     },
     {
       "path": ".ai/cezar/workflows/factory-fix-review.yaml",
-      "sha256": "a46d7577e46665e050da9d7a76f3281b235f891a3ed6a08c7cedbc802d0d6421"
+      "sha256": "c302036896b363e8a2b8c76fd900427cbd013dfb81d83db1a75f211fc1fdf98b"
     },
     {
       "path": ".ai/cezar/workflows/factory-implement.yaml",
-      "sha256": "c3b579973435b3f6350ce5d9bb62c00c5ca457ad5d39fdc392f07f3883d532a4"
+      "sha256": "cd78e9fdea10061b43cf95126049224cb044d0b15bef05ea1bf57a81a0c2d990"
     },
     {
       "path": ".ai/cezar/workflows/factory-investigate.yaml",
-      "sha256": "ebd1206ae04960f091ac341e7a0eb3532f0f581b3fd7ca185ed5345325d6db31"
+      "sha256": "a90c24e33cc852f123b698d4fd8e0d353bcbf080869dc6a52a451292b98a9fab"
     },
     {
       "path": ".ai/cezar/workflows/factory-plan.yaml",
-      "sha256": "bb9094131794642b162c6863d3f1133a184844a14059960ba6c04d4e7578e6d1"
+      "sha256": "f136122db743d25ffe684883d53e35951cbedf8eec449c1050be0f9dd061ef71"
     },
     {
       "path": ".ai/cezar/workflows/factory-review.yaml",
-      "sha256": "5e5ce63780c5f82ec962922c83143e4bfa9cca74af89b5c00548804da6a15da2"
+      "sha256": "cd4740eede279a86e360c3de2b922da83ee39d8513687d313c83331ac6a34436"
     }
   ]
 }
