@@ -3,15 +3,24 @@ Application service for job evaluations.
 Orchestrates deterministic evaluation of jobs against profiles.
 """
 
-from typing import Optional
+
 from sqlalchemy.orm import Session
 
+from careerflow.application.evaluations.mapping import (
+    to_job,
+    to_profile,
+    to_role_families,
+    to_role_targets,
+    to_scoring_preferences,
+    to_search_preferences,
+)
 from careerflow.application.jobs.service import JobService
 from careerflow.application.profiles.service import ProfileService
-from careerflow.domain.evaluations.service import DeterministicEvaluator, create_deterministic_evaluator
+from careerflow.domain.evaluations.service import (
+    DeterministicEvaluator,
+    create_deterministic_evaluator,
+)
 from careerflow.infrastructure.database.models import (
-    JobModel,
-    ProfileModel,
     JobEvaluationModel,
 )
 
@@ -23,7 +32,7 @@ class EvaluationService:
         self, 
         job_service: JobService,
         profile_service: ProfileService,
-        evaluator: Optional[DeterministicEvaluator] = None
+        evaluator: DeterministicEvaluator | None = None
     ):
         self.job_service = job_service
         self.profile_service = profile_service
@@ -56,20 +65,20 @@ class EvaluationService:
         search_prefs = self.profile_service.get_search_preferences(profile_id)
         scoring_prefs = self.profile_service.get_scoring_preferences(profile_id)
         
-        # Convert ORM models to domain models for evaluation
-        # For now, we'll work with the ORM models directly since they have the needed fields
-        # In a more complex implementation, we might convert to domain models
-        
-        # Perform deterministic evaluation
+        # Convert ORM rows to domain models: the domain layer must not see ORM entities.
+        families = to_role_families(role_families)
+        targets = to_role_targets(role_targets)
+        search = to_search_preferences(search_prefs)
+        scoring = to_scoring_preferences(scoring_prefs)
         evaluation_result = self.evaluator.evaluate_job_against_profile(
-            job=job,
-            profile=profile,
-            role_families=role_families,
-            role_targets=role_targets,
-            search_prefs=search_prefs,
-            scoring_prefs=scoring_prefs
+            job=to_job(job),
+            profile=to_profile(profile, families, targets, search, scoring),
+            role_families=families,
+            role_targets=targets,
+            search_prefs=search,
+            scoring_prefs=scoring,
         )
-        
+
         # Create evaluation record
         evaluation_data = {
             "job_id": job_id,
@@ -100,7 +109,7 @@ class EvaluationService:
         job_id: str, 
         profile_id: str,
         session: Session
-    ) -> Optional[JobEvaluationModel]:
+    ) -> JobEvaluationModel | None:
         """Get the latest evaluation for a job-profile pair."""
         # Validate job and profile exist
         self.job_service.get_job(job_id)
@@ -140,7 +149,7 @@ class EvaluationService:
 def create_evaluation_service(
     job_service: JobService,
     profile_service: ProfileService,
-    evaluator: Optional[DeterministicEvaluator] = None
+    evaluator: DeterministicEvaluator | None = None
 ) -> EvaluationService:
     """Create an evaluation service instance."""
     return EvaluationService(job_service, profile_service, evaluator)

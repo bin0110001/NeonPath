@@ -4,8 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from careerflow.infrastructure.database.models import (
-    JobModel,
     JobEvaluationModel,
+    JobModel,
     JobRequirementModel,
     JobSourceRecordModel,
     JobStatusHistoryModel,

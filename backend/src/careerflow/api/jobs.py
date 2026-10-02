@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -8,10 +9,7 @@ from careerflow.application.evaluations.service import EvaluationService
 from careerflow.application.jobs.service import JobNotFoundError, JobService
 from careerflow.application.profiles.service import ProfileService
 from careerflow.infrastructure.database.models import (
-    JobEvaluationModel,
     JobModel,
-    JobRequirementModel,
-    JobSourceRecordModel,
 )
 from careerflow.infrastructure.database.session import create_database_engine
 
@@ -45,8 +43,8 @@ def require_job_service(service: JobService, job_id: str) -> JobModel:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found") from error
 
 
-@router.get("", response_model=list[dict])
-def list_jobs(job_service: JobService = Depends(get_job_service)) -> list[dict]:
+@router.get("", response_model=list[dict[str, Any]])
+def list_jobs(job_service: JobService = Depends(get_job_service)) -> list[dict[str, Any]]:
     jobs = job_service.list_jobs()
     return [
         {
@@ -76,8 +74,8 @@ def list_jobs(job_service: JobService = Depends(get_job_service)) -> list[dict]:
     ]
 
 
-@router.post("", response_model=dict, status_code=status.HTTP_201_CREATED)
-def create_job(payload: dict, job_service: JobService = Depends(get_job_service)) -> dict:
+@router.post("", response_model=dict[str, Any], status_code=status.HTTP_201_CREATED)
+def create_job(payload: dict[str, Any], job_service: JobService = Depends(get_job_service)) -> dict[str, Any]:
     try:
         job = job_service.create_job(payload)
         return {
@@ -107,8 +105,8 @@ def create_job(payload: dict, job_service: JobService = Depends(get_job_service)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="job conflict") from error
 
 
-@router.get("/{job_id}", response_model=dict)
-def get_job(job_id: str, job_service: JobService = Depends(get_job_service)) -> dict:
+@router.get("/{job_id}", response_model=dict[str, Any])
+def get_job(job_id: str, job_service: JobService = Depends(get_job_service)) -> dict[str, Any]:
     job = require_job_service(job_service, job_id)
     return {
         "id": job.id,
@@ -135,10 +133,10 @@ def get_job(job_id: str, job_service: JobService = Depends(get_job_service)) -> 
     }
 
 
-@router.put("/{job_id}", response_model=dict)
+@router.put("/{job_id}", response_model=dict[str, Any])
 def update_job(
-    job_id: str, payload: dict, job_service: JobService = Depends(get_job_service)
-) -> dict:
+    job_id: str, payload: dict[str, Any], job_service: JobService = Depends(get_job_service)
+) -> dict[str, Any]:
     try:
         job = job_service.update_job(job_id, payload)
         return {
@@ -179,10 +177,10 @@ def delete_job(job_id: str, job_service: JobService = Depends(get_job_service)) 
 
 
 # Source records endpoints
-@router.get("/{job_id}/sources", response_model=list[dict])
+@router.get("/{job_id}/sources", response_model=list[dict[str, Any]])
 def list_source_records(
     job_id: str, service: JobService = Depends(get_job_service)
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     require_job_service(service, job_id)  # Validate job exists
     sources = service.list_source_records(job_id)
     return [
@@ -200,10 +198,10 @@ def list_source_records(
     ]
 
 
-@router.post("/{job_id}/sources", response_model=dict, status_code=status.HTTP_201_CREATED)
+@router.post("/{job_id}/sources", response_model=dict[str, Any], status_code=status.HTTP_201_CREATED)
 def add_source_record(
-    job_id: str, payload: dict, service: JobService = Depends(get_job_service)
-) -> dict:
+    job_id: str, payload: dict[str, Any], service: JobService = Depends(get_job_service)
+) -> dict[str, Any]:
     try:
         source = service.add_source_record(job_id, payload)
         return {
@@ -221,10 +219,10 @@ def add_source_record(
 
 
 # Requirements endpoints
-@router.get("/{job_id}/requirements", response_model=list[dict])
+@router.get("/{job_id}/requirements", response_model=list[dict[str, Any]])
 def list_requirements(
     job_id: str, job_service: JobService = Depends(get_job_service)
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     require_job_service(job_service, job_id)  # Validate job exists
     requirements = job_service.list_requirements(job_id)
     return [
@@ -242,10 +240,10 @@ def list_requirements(
     ]
 
 
-@router.post("/{job_id}/requirements", response_model=dict, status_code=status.HTTP_201_CREATED)
+@router.post("/{job_id}/requirements", response_model=dict[str, Any], status_code=status.HTTP_201_CREATED)
 def add_requirement(
-    job_id: str, payload: dict, job_service: JobService = Depends(get_job_service)
-) -> dict:
+    job_id: str, payload: dict[str, Any], job_service: JobService = Depends(get_job_service)
+) -> dict[str, Any]:
     try:
         requirement = job_service.add_requirement(job_id, payload)
         return {
@@ -263,10 +261,10 @@ def add_requirement(
 
 
 # Evaluations endpoints
-@router.get("/{job_id}/evaluations", response_model=list[dict])
+@router.get("/{job_id}/evaluations", response_model=list[dict[str, Any]])
 def list_evaluations(
     job_id: str, evaluation_service: EvaluationService = Depends(get_evaluation_service)
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     require_job_service(evaluation_service.job_service, job_id)  # Validate job exists
     evaluations = evaluation_service.job_service.list_evaluations(job_id)
     return [
@@ -292,10 +290,10 @@ def list_evaluations(
     ]
 
 
-@router.post("/{job_id}/evaluations", response_model=dict, status_code=status.HTTP_201_CREATED)
+@router.post("/{job_id}/evaluations", response_model=dict[str, Any], status_code=status.HTTP_201_CREATED)
 def add_evaluation(
-    job_id: str, payload: dict, evaluation_service: EvaluationService = Depends(get_evaluation_service)
-) -> dict:
+    job_id: str, payload: dict[str, Any], evaluation_service: EvaluationService = Depends(get_evaluation_service)
+) -> dict[str, Any]:
     # For MVP, we'll require profile_id in the payload
     profile_id = payload.pop("profile_id", None)
     if not profile_id:
@@ -327,10 +325,10 @@ def add_evaluation(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found") from error
 
 
-@router.get("/{job_id}/evaluations/latest", response_model=dict | None)
+@router.get("/{job_id}/evaluations/latest", response_model=dict[str, Any] | None)
 def get_latest_evaluation(
     job_id: str, profile_id: str, evaluation_service: EvaluationService = Depends(get_evaluation_service)
-) -> dict | None:
+) -> dict[str, Any] | None:
     try:
         evaluation = evaluation_service.get_job_evaluation(
             job_id, profile_id, evaluation_service.job_service.session
@@ -360,10 +358,10 @@ def get_latest_evaluation(
 
 
 # Workflow action endpoints
-@router.post("/{job_id}/shortlist", response_model=dict)
+@router.post("/{job_id}/shortlist", response_model=dict[str, Any])
 def shortlist_job(
-    job_id: str, payload: dict, job_service: JobService = Depends(get_job_service)
-) -> dict:
+    job_id: str, payload: dict[str, Any], job_service: JobService = Depends(get_job_service)
+) -> dict[str, Any]:
     """Shortlist a job."""
     actor = payload.get("actor", "user")
     reason = payload.get("reason", "Job shortlisted")
@@ -381,10 +379,10 @@ def shortlist_job(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found") from error
 
 
-@router.post("/{job_id}/reject", response_model=dict)
+@router.post("/{job_id}/reject", response_model=dict[str, Any])
 def reject_job(
-    job_id: str, payload: dict, job_service: JobService = Depends(get_job_service)
-) -> dict:
+    job_id: str, payload: dict[str, Any], job_service: JobService = Depends(get_job_service)
+) -> dict[str, Any]:
     """Reject a job."""
     actor = payload.get("actor", "user")
     reason = payload.get("reason", "Job rejected")
@@ -402,10 +400,10 @@ def reject_job(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found") from error
 
 
-@router.post("/{job_id}/save", response_model=dict)
+@router.post("/{job_id}/save", response_model=dict[str, Any])
 def save_job(
-    job_id: str, payload: dict, job_service: JobService = Depends(get_job_service)
-) -> dict:
+    job_id: str, payload: dict[str, Any], job_service: JobService = Depends(get_job_service)
+) -> dict[str, Any]:
     """Save a job."""
     actor = payload.get("actor", "user")
     reason = payload.get("reason", "Job saved")
@@ -424,10 +422,10 @@ def save_job(
 
 
 # Demo/import endpoints
-@router.post("/import", response_model=dict, status_code=status.HTTP_201_CREATED)
+@router.post("/import", response_model=dict[str, Any], status_code=status.HTTP_201_CREATED)
 def import_fixture_job(
-    payload: dict, job_service: JobService = Depends(get_job_service)
-) -> dict:
+    payload: dict[str, Any], job_service: JobService = Depends(get_job_service)
+) -> dict[str, Any]:
     """
     Import a single job from fixture data.
     This is useful for demo purposes and testing.

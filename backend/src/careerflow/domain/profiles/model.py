@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -45,7 +46,7 @@ class ScoringPreferences:
 @dataclass
 class Profile:
     display_name: str
-    skills: list = field(default_factory=list)
+    skills: list[Any] = field(default_factory=list)
     role_families: list[RoleFamily] = field(default_factory=list)
     role_targets: list[RoleTarget] = field(default_factory=list)
     search_preferences: SearchPreferences | None = None

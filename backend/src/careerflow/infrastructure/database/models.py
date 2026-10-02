@@ -211,10 +211,10 @@ class JobModel(Base):
     status: Mapped[str] = mapped_column(String(32), default="DISCOVERED")  # DISCOVERED, INGESTED, NORMALIZED, DEDUPLICATED, ENRICHED, EVALUATED, READY_FOR_REVIEW, SHORTLISTED, REJECTED, SAVED, ARCHIVED
 
     # Relationships
-    source_records: Mapped[list["JobSourceRecordModel"]] = relationship(back_populates="job", cascade="all, delete-orphan")
-    requirements: Mapped[list["JobRequirementModel"]] = relationship(back_populates="job", cascade="all, delete-orphan")
-    evaluations: Mapped[list["JobEvaluationModel"]] = relationship(back_populates="job", cascade="all, delete-orphan")
-    status_history: Mapped[list["JobStatusHistoryModel"]] = relationship(back_populates="job", cascade="all, delete-orphan")
+    source_records: Mapped[list[JobSourceRecordModel]] = relationship(back_populates="job", cascade="all, delete-orphan")
+    requirements: Mapped[list[JobRequirementModel]] = relationship(back_populates="job", cascade="all, delete-orphan")
+    evaluations: Mapped[list[JobEvaluationModel]] = relationship(back_populates="job", cascade="all, delete-orphan")
+    status_history: Mapped[list[JobStatusHistoryModel]] = relationship(back_populates="job", cascade="all, delete-orphan")
 
 
 class JobSourceRecordModel(Base):
