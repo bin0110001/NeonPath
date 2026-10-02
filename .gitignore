@@ -15,3 +15,6 @@ frontend/.npm-cache/
 frontend/dist/
 *.tsbuildinfo
 *.log
+
+# Cezar factory run output
+.factory/
