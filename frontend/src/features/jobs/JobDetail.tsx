@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import type { Job, JobEvaluation, JobRequirement, JobSource } from "./types";
+
+// For demo, a fixed profile ID; this would come from auth/profile selection in a real app.
+const profileId = "demo-profile-id";
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 export function JobDetail() {
   const { jobId } = useParams();
   const navigate = useNavigate();
-  const [job, setJob] = useState<any>(null);
+  const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [evaluation, setEvaluation] = useState<any>(null);
+  const [evaluation, setEvaluation] = useState<JobEvaluation | null>(null);
   const [evalLoading, setEvalLoading] = useState<boolean>(false);
   const [evalError, setEvalError] = useState<string | null>(null);
-  const [profileId, setProfileId] = useState<string>(""); // For demo, we'll use a fixed profile ID
 
   // Mock data function - moved to top to avoid temporal dead zone issues
   const getMockJobById = (id: string) => {
@@ -176,7 +179,7 @@ export function JobDetail() {
           const data = await response.json();
           setJob(data);
         }
-      } catch (err) {
+      } catch {
         // If API is not available, show mock data for demo
         const mockJob = getMockJobById(jobId);
         if (mockJob) {
@@ -204,7 +207,7 @@ export function JobDetail() {
           const data = await response.json();
           setEvaluation(data);
         }
-      } catch (err) {
+      } catch {
         setEvalError("Failed to fetch evaluation");
       } finally {
         setEvalLoading(false);
@@ -212,8 +215,6 @@ export function JobDetail() {
     }
 
     fetchJob();
-    // For demo, we'll use a fixed profile ID
-    setProfileId("demo-profile-id"); // This would come from auth/profile selection in real app
     fetchEvaluation();
   }, [jobId]);
 
@@ -246,7 +247,7 @@ export function JobDetail() {
       
       const data = await response.json();
       setEvaluation(data);
-    } catch (err) {
+    } catch {
       setEvalError("Failed to evaluate job");
     } finally {
       setEvalLoading(false);
@@ -293,7 +294,7 @@ export function JobDetail() {
           <div className="job-section">
             <h3>Requirements</h3>
             <ul>
-              {job.requirements.map((req: any, index: number) => (
+              {job.requirements.map((req: JobRequirement, index: number) => (
                 <li key={index}>
                   <strong>{req.type}:</strong> {req.normalized_text} 
                   {req.required_level && ` (${req.required_level})`}
@@ -308,7 +309,7 @@ export function JobDetail() {
           <div className="job-section">
             <h3>Source Information</h3>
             <p><strong>Discovered:</strong> {new Date(job.discovered_at).toLocaleDateString()}</p>
-            {job.sources.map((source: any, index: number) => (
+            {job.sources.map((source: JobSource, index: number) => (
               <div key={index} className="source-item">
                 <strong>Source:</strong> {source.adapter} 
                 {source.external_id && ` (ID: ${source.external_id})`}

@@ -1,8 +1,9 @@
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from careerflow.application.jobs.service import JobService
-from careerflow.infrastructure.database.models import Base, JobModel
+from careerflow.application.jobs.service import JobNotFoundError, JobService
+from careerflow.infrastructure.database.models import Base
 
 
 def test_job_creation_and_retrieval() -> None:
@@ -82,11 +83,8 @@ def test_job_not_found() -> None:
     with Session(engine) as session:
         service = JobService(session)
         
-        try:
+        with pytest.raises(JobNotFoundError, match="Job not found"):
             service.get_job("non-existent-id")
-            assert False, "Should have raised JobNotFoundError"
-        except Exception as e:
-            assert "Job not found" in str(e)
 
 
 def test_job_source_records() -> None:

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { Job } from "./types";
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
@@ -95,7 +96,7 @@ const getMockJobs = () => {
 };
 
 export function JobList() {
-  const [jobs, setJobs] = useState<Array<any>>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -112,7 +113,7 @@ export function JobList() {
           const data = await response.json();
           setJobs(data);
         }
-      } catch (err) {
+      } catch {
         // If API is not available, show mock data for demo
         setJobs(getMockJobs());
         setError("Using mock data - API not available");

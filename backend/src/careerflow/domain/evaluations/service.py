@@ -3,18 +3,23 @@ Deterministic evaluation service for Phase 3 implementation.
 Implements rule-based evaluation logic without requiring AI.
 """
 
-from typing import Dict, List, Any, Optional
-from datetime import datetime
 import re
+from typing import Any
 
 from careerflow.domain.jobs.model import Job
-from careerflow.domain.profiles.model import Profile, RoleFamily, RoleTarget, SearchPreferences, ScoringPreferences
+from careerflow.domain.profiles.model import (
+    Profile,
+    RoleFamily,
+    RoleTarget,
+    ScoringPreferences,
+    SearchPreferences,
+)
 
 
 class DeterministicEvaluator:
     """Evaluates job-profile fit using deterministic rules."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         # Default weights - can be overridden by profile-specific weights
         self.default_weights = {
             "role_alignment": 0.20,
@@ -49,11 +54,11 @@ class DeterministicEvaluator:
         self, 
         job: Job, 
         profile: Profile,
-        role_families: List[RoleFamily] = None,
-        role_targets: List[RoleTarget] = None,
-        search_prefs: SearchPreferences = None,
-        scoring_prefs: ScoringPreferences = None
-    ) -> Dict[str, Any]:
+        role_families: list[RoleFamily] | None = None,
+        role_targets: list[RoleTarget] | None = None,
+        search_prefs: SearchPreferences | None = None,
+        scoring_prefs: ScoringPreferences | None = None
+    ) -> dict[str, Any]:
         """
         Evaluate a job against a profile using deterministic rules.
         
@@ -182,7 +187,7 @@ class DeterministicEvaluator:
             "model_name": None,
         }
     
-    def _calculate_role_alignment(self, job: Job, role_families: List[RoleFamily], role_targets: List[RoleTarget]) -> float:
+    def _calculate_role_alignment(self, job: Job, role_families: list[RoleFamily], role_targets: list[RoleTarget]) -> float:
         """Calculate role alignment based on title matching and role families."""
         if not role_families and not role_targets:
             return 0.5  # Neutral if no preferences set
@@ -236,7 +241,7 @@ class DeterministicEvaluator:
         
         return min(1.0, max_score)
     
-    def _calculate_seniority_from_title(self, title: str, target_seniority: List[str]) -> float:
+    def _calculate_seniority_from_title(self, title: str, target_seniority: list[str]) -> float:
         """Calculate seniority match from job title."""
         seniority_indicators = {
             "entry": ["entry", "junior", "jr", "associate", "assistant"],
@@ -270,7 +275,7 @@ class DeterministicEvaluator:
         
         return 0.2  # Low match if no overlap
     
-    def _calculate_seniority_alignment(self, job: Job, role_targets: List[RoleTarget]) -> float:
+    def _calculate_seniority_alignment(self, job: Job, role_targets: list[RoleTarget]) -> float:
         """Calculate seniority alignment based on role targets."""
         if not role_targets:
             return 0.5  # Neutral
@@ -285,7 +290,7 @@ class DeterministicEvaluator:
                 
         return best_score
     
-    def _calculate_location_alignment(self, job: Job, search_prefs: Optional[SearchPreferences]) -> tuple[float, Optional[str]]:
+    def _calculate_location_alignment(self, job: Job, search_prefs: SearchPreferences | None) -> tuple[float, str | None]:
         """Calculate location alignment and check for blockers."""
         if not search_prefs:
             return 0.5, None  # Neutral if no preferences
@@ -322,7 +327,7 @@ class DeterministicEvaluator:
         
         return location_score, None
     
-    def _calculate_remote_alignment(self, job: Job, search_prefs: Optional[SearchPreferences]) -> tuple[float, Optional[str]]:
+    def _calculate_remote_alignment(self, job: Job, search_prefs: SearchPreferences | None) -> tuple[float, str | None]:
         """Calculate remote work alignment and check for blockers."""
         if not search_prefs:
             return 0.5, None  # Neutral if no preferences
@@ -343,7 +348,7 @@ class DeterministicEvaluator:
         
         return score, blocker
     
-    def _calculate_compensation_alignment(self, job: Job, search_prefs: Optional[SearchPreferences]) -> tuple[float, Optional[str]]:
+    def _calculate_compensation_alignment(self, job: Job, search_prefs: SearchPreferences | None) -> tuple[float, str | None]:
         """Calculate compensation alignment and check for blockers."""
         if not search_prefs:
             return 0.5, None  # Neutral if no preferences
@@ -375,7 +380,7 @@ class DeterministicEvaluator:
         # No specific compensation requirements
         return 0.5, blocker
     
-    def _calculate_employment_type_alignment(selfself, job: Job, search_prefs: Optional[SearchPreferences]) -> tuple[float, Optional[str]]:
+    def _calculate_employment_type_alignment(selfself, job: Job, search_prefs: SearchPreferences | None) -> tuple[float, str | None]:
         """Calculate employment type alignment and check for blockers."""
         if not search_prefs:
             return 0.5, None  # Neutral if no preferences
@@ -439,10 +444,10 @@ class DeterministicEvaluator:
         self, 
         job: Job, 
         profile: Profile, 
-        dimension_scores: Dict[str, float],
-        strengths: List[str],
-        gaps: List[str],
-        blockers: List[str],
+        dimension_scores: dict[str, float],
+        strengths: list[str],
+        gaps: list[str],
+        blockers: list[str],
         has_blockers: bool
     ) -> str:
         """Generate a human-readable explanation of the evaluation."""
