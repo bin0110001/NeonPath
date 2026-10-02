@@ -1,6 +1,6 @@
 <!--
 managed-by: cezar-factory
-factory-version: 0.3.0
+factory-version: 0.3.1
 source: policies/escalation.md
 -->
 # Escalation policy
