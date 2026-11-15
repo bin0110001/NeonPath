@@ -1,25 +1,25 @@
-from datetime date, datetime
-from typing import Any, Optional
+from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class JobBase(BaseModel):
-    canonical_url: Optional[str] = None
+    canonical_url: str | None = None
     title: str
     company: str
-    company_domain: Optional[str] = None
+    company_domain: str | None = None
     description_text: str
-    description_html: Optional[str] = None
-    location_text: Optional[str] = None
-    remote_type: Optional[str] = None  # REMOTE, HYBRID, ONSITE
-    employment_type: Optional[str] = None  # FULL_TIME, PART_TIME, CONTRACT, etc.
-    salary_min: Optional[float] = None
-    salary_max: Optional[float] = None
-    salary_currency: Optional[str] = None  # USD, EUR, etc.
-    salary_period: Optional[str] = None  # YEAR, MONTH, HOUR
-    posted_at: Optional[datetime] = None
-    expires_at: Optional[datetime] = None
+    description_html: str | None = None
+    location_text: str | None = None
+    remote_type: str | None = None  # REMOTE, HYBRID, ONSITE
+    employment_type: str | None = None  # FULL_TIME, PART_TIME, CONTRACT, etc.
+    salary_min: float | None = None
+    salary_max: float | None = None
+    salary_currency: str | None = None  # USD, EUR, etc.
+    salary_period: str | None = None  # YEAR, MONTH, HOUR
+    posted_at: datetime | None = None
+    expires_at: datetime | None = None
     raw_metadata_json: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -36,15 +36,15 @@ class JobOutput(JobBase):
 
     id: str
     discovered_at: datetime
-    source_updated_at: Optional[datetime] = None
-    source_status: Optional[str] = None  # ACTIVE, EXPIRED, FILLED, etc.
-    fingerprint: Optional[str] = None  # For deduplication
+    source_updated_at: datetime | None = None
+    source_status: str | None = None  # ACTIVE, EXPIRED, FILLED, etc.
+    fingerprint: str | None = None  # For deduplication
 
 
 class JobSourceRecordBase(BaseModel):
     adapter: str  # e.g., "manual", "rss", "greenhouse"
-    external_id: Optional[str] = None
-    source_url: Optional[str] = None
+    external_id: str | None = None
+    source_url: str | None = None
     raw_payload: dict[str, Any]
 
 
@@ -65,9 +65,9 @@ class JobRequirementBase(BaseModel):
     type: str  # skill, experience, education, etc.
     normalized_text: str
     source_text: str
-    required_level: Optional[str] = None  # BEGINNER, INTERMEDIATE, EXPERT, etc.
-    category: Optional[str] = None  # Matches categories from spec
-    confidence: Optional[float] = None  # 0.0 to 1.0
+    required_level: str | None = None  # BEGINNER, INTERMEDIATE, EXPERT, etc.
+    category: str | None = None  # Matches categories from spec
+    confidence: float | None = None  # 0.0 to 1.0
 
 
 class JobRequirementCreate(JobRequirementBase):
@@ -83,17 +83,17 @@ class JobRequirementOutput(JobRequirementBase):
 
 class JobEvaluationBase(BaseModel):
     evaluator_version: str
-    model_provider: Optional[str] = None
-    model_name: Optional[str] = None
+    model_provider: str | None = None
+    model_name: str | None = None
     overall_score: float  # 0.0 to 1.0
-    confidence: Optional[float] = None
+    confidence: float | None = None
     dimension_scores_json: dict[str, float] = Field(default_factory=dict)
     strengths: list[str] = Field(default_factory=list)
     transferable_matches: list[str] = Field(default_factory=list)
     gaps: list[str] = Field(default_factory=list)
     blockers: list[str] = Field(default_factory=list)
     unknowns: list[str] = Field(default_factory=list)
-    explanation: Optional[str] = None
+    explanation: str | None = None
 
 
 class JobEvaluationCreate(JobEvaluationBase):

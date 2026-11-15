@@ -9,17 +9,13 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-# Add the backend/src directory to the path so we can import careerflow modules
-backend_src_path = Path(__file__).parent.parent.parent / "backend" / "src"
-sys.path.insert(0, str(backend_src_path))
-
 from careerflow.application.jobs.service import JobService
 from careerflow.infrastructure.database.session import create_database_engine
 
 
 def load_fixture_jobs(fixture_path: Path) -> list[dict]:
     """Load job fixtures from a JSON file."""
-    with open(fixture_path, "r") as f:
+    with open(fixture_path) as f:
         return json.load(f)
 
 
@@ -89,5 +85,6 @@ def main():
 if __name__ == "__main__":
     # Import here to avoid issues with path modification
     from sqlalchemy import select
+
     from careerflow.infrastructure.database.models import JobModel
     main()

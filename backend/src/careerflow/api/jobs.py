@@ -8,10 +8,7 @@ from careerflow.application.evaluations.service import EvaluationService
 from careerflow.application.jobs.service import JobNotFoundError, JobService
 from careerflow.application.profiles.service import ProfileService
 from careerflow.infrastructure.database.models import (
-    JobEvaluationModel,
     JobModel,
-    JobRequirementModel,
-    JobSourceRecordModel,
 )
 from careerflow.infrastructure.database.session import create_database_engine
 

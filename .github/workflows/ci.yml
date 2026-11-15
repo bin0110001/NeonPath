@@ -20,6 +20,36 @@ jobs:
       - run: uv run ruff check .
       - run: uv run mypy src
 
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: careerflow
+          POSTGRES_USER: careerflow
+          POSTGRES_PASSWORD: ci-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U careerflow" --health-interval 5s
+          --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://careerflow:ci-password@localhost:5432/careerflow
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --group dev
+      - run: uv run alembic upgrade head
+      - name: Drift check (models vs migrations)
+        run: uv run alembic check
+      - run: uv run alembic downgrade base
+      - run: uv run alembic upgrade head
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

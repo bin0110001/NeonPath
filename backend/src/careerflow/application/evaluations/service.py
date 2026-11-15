@@ -3,15 +3,16 @@ Application service for job evaluations.
 Orchestrates deterministic evaluation of jobs against profiles.
 """
 
-from typing import Optional
+
 from sqlalchemy.orm import Session
 
 from careerflow.application.jobs.service import JobService
 from careerflow.application.profiles.service import ProfileService
-from careerflow.domain.evaluations.service import DeterministicEvaluator, create_deterministic_evaluator
+from careerflow.domain.evaluations.service import (
+    DeterministicEvaluator,
+    create_deterministic_evaluator,
+)
 from careerflow.infrastructure.database.models import (
-    JobModel,
-    ProfileModel,
     JobEvaluationModel,
 )
 
@@ -23,7 +24,7 @@ class EvaluationService:
         self, 
         job_service: JobService,
         profile_service: ProfileService,
-        evaluator: Optional[DeterministicEvaluator] = None
+        evaluator: DeterministicEvaluator | None = None
     ):
         self.job_service = job_service
         self.profile_service = profile_service
@@ -100,7 +101,7 @@ class EvaluationService:
         job_id: str, 
         profile_id: str,
         session: Session
-    ) -> Optional[JobEvaluationModel]:
+    ) -> JobEvaluationModel | None:
         """Get the latest evaluation for a job-profile pair."""
         # Validate job and profile exist
         self.job_service.get_job(job_id)
@@ -140,7 +141,7 @@ class EvaluationService:
 def create_evaluation_service(
     job_service: JobService,
     profile_service: ProfileService,
-    evaluator: Optional[DeterministicEvaluator] = None
+    evaluator: DeterministicEvaluator | None = None
 ) -> EvaluationService:
     """Create an evaluation service instance."""
     return EvaluationService(job_service, profile_service, evaluator)

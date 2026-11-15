@@ -11,8 +11,8 @@ from careerflow.infrastructure.database.models import (
     ProfileSkillModel,
     RoleFamilyModel,
     RoleTargetModel,
-    SearchPreferenceModel,
     ScoringPreferenceModel,
+    SearchPreferenceModel,
     SkillAliasModel,
     SkillModel,
 )
@@ -159,13 +159,11 @@ class ProfileService:
     # Role family methods
     def list_role_families(self, profile_id: str) -> list:
         self.get_profile(profile_id)
-        from careerflow.infrastructure.database.models import RoleFamilyModel
         statement = select(RoleFamilyModel).where(RoleFamilyModel.profile_id == profile_id)
         return list(self.session.scalars(statement))
 
     def add_role_family(self, profile_id: str, values: dict[str, object]) -> object:
         self.get_profile(profile_id)
-        from careerflow.infrastructure.database.models import RoleFamilyModel
         role_family = RoleFamilyModel(profile_id=profile_id, **values)
         self.session.add(role_family)
         self.session.commit()
@@ -175,13 +173,11 @@ class ProfileService:
     # Role target methods
     def list_role_targets(self, profile_id: str) -> list:
         self.get_profile(profile_id)
-        from careerflow.infrastructure.database.models import RoleTargetModel
         statement = select(RoleTargetModel).where(RoleTargetModel.profile_id == profile_id)
         return list(self.session.scalars(statement))
 
     def add_role_target(self, profile_id: str, values: dict[str, object]) -> object:
         self.get_profile(profile_id)
-        from careerflow.infrastructure.database.models import RoleTargetModel
         role_target = RoleTargetModel(profile_id=profile_id, **values)
         self.session.add(role_target)
         self.session.commit()
@@ -191,13 +187,11 @@ class ProfileService:
     # Search preferences methods
     def get_search_preferences(self, profile_id: str):
         self.get_profile(profile_id)
-        from careerflow.infrastructure.database.models import SearchPreferenceModel
         statement = select(SearchPreferenceModel).where(SearchPreferenceModel.profile_id == profile_id)
         return self.session.scalars(statement).first()
 
     def add_or_update_search_preferences(self, profile_id: str, values: dict[str, object]) -> object:
         self.get_profile(profile_id)
-        from careerflow.infrastructure.database.models import SearchPreferenceModel
         existing = self.session.get(SearchPreferenceModel, profile_id)
         if existing:
             for name, value in values.items():
@@ -212,13 +206,11 @@ class ProfileService:
     # Scoring preferences methods
     def get_scoring_preferences(self, profile_id: str):
         self.get_profile(profile_id)
-        from careerflow.infrastructure.database.models import ScoringPreferenceModel
         statement = select(ScoringPreferenceModel).where(ScoringPreferenceModel.profile_id == profile_id)
         return self.session.scalars(statement).first()
 
     def add_or_update_scoring_preferences(self, profile_id: str, values: dict[str, object]) -> object:
         self.get_profile(profile_id)
-        from careerflow.infrastructure.database.models import ScoringPreferenceModel
         existing = self.session.get(ScoringPreferenceModel, profile_id)
         if existing:
             for name, value in values.items():
