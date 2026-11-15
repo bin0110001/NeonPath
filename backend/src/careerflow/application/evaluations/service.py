@@ -6,6 +6,8 @@ append-only: every run adds a versioned row and earlier rows are never overwritt
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -20,7 +22,7 @@ from careerflow.domain.evaluations.service import (
     DeterministicEvaluator,
     create_deterministic_evaluator,
 )
-from careerflow.infrastructure.database.models import JobEvaluationModel
+from careerflow.infrastructure.database.models import JobEvaluationModel, ProfileModel
 
 
 class EvaluationService:
@@ -61,6 +63,7 @@ class EvaluationService:
             blockers=result.blockers,
             unknowns=result.unknowns,
             explanation=result.explanation,
+            created_at=datetime.now(UTC),  # microsecond precision keeps 'latest' unambiguous
         )
         self.session.add(evaluation)
         self.session.commit()
@@ -85,3 +88,22 @@ class EvaluationService:
         self, job_id: str, profile_id: str | None = None
     ) -> list[JobEvaluationModel]:
         return self.job_service.list_evaluations(job_id, profile_id)
+
+    def evaluate_job_for_all_profiles(self, job_id: str) -> list[JobEvaluationModel]:
+        """Append one new evaluation per existing profile (deterministic only)."""
+        self.job_service.get_job(job_id)
+        profile_ids = list(self.session.scalars(select(ProfileModel.id).order_by(ProfileModel.slug)))
+        return [self.evaluate_job_for_profile(job_id, profile_id) for profile_id in profile_ids]
+
+    def latest_per_profile(self, job_id: str) -> list[JobEvaluationModel]:
+        """The newest evaluation of the job for each profile that has one."""
+        self.job_service.get_job(job_id)
+        rows = self.session.scalars(
+            select(JobEvaluationModel)
+            .where(JobEvaluationModel.job_id == job_id)
+            .order_by(JobEvaluationModel.created_at.desc(), JobEvaluationModel.id)
+        )
+        latest: dict[str, JobEvaluationModel] = {}
+        for row in rows:
+            latest.setdefault(row.profile_id, row)
+        return list(latest.values())

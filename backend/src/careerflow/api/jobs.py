@@ -76,9 +76,14 @@ def create_job(
 
 @router.post("/import", response_model=JobOutput, status_code=status.HTTP_201_CREATED)
 def import_job(
-    payload: JobImport, job_service: JobService = Depends(get_job_service)
+    payload: JobImport,
+    job_service: JobService = Depends(get_job_service),
+    evaluation_service: EvaluationService = Depends(get_evaluation_service),
 ) -> JobOutput:
-    """Manual or fixture import: description text is required, URL capture is optional."""
+    """Manual or fixture import: description text is required, URL capture is optional.
+
+    The new job is evaluated (deterministic rules only) against every existing profile.
+    """
     job_values = payload.model_dump(exclude={"source", "requirements"})
     job_values["status"] = "READY_FOR_REVIEW"
     try:
@@ -89,6 +94,7 @@ def import_job(
             job_service.add_requirement(job.id, requirement.model_dump())
     except IntegrityError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="job conflict") from error
+    evaluation_service.evaluate_job_for_all_profiles(job.id)
     return JobOutput.model_validate(job)
 
 
@@ -206,6 +212,34 @@ def evaluate_job(
     except (JobNotFoundError, ProfileNotFoundError) as error:
         raise not_found(error) from error
     return JobEvaluationOutput.model_validate(row)
+
+
+@router.post(
+    "/{job_id}/evaluate-all",
+    response_model=list[JobEvaluationOutput],
+    status_code=status.HTTP_201_CREATED,
+)
+def evaluate_job_for_all_profiles(
+    job_id: str, evaluation_service: EvaluationService = Depends(get_evaluation_service)
+) -> list[JobEvaluationOutput]:
+    """Re-evaluate the job for every profile; each run appends new history rows."""
+    try:
+        rows = evaluation_service.evaluate_job_for_all_profiles(job_id)
+    except JobNotFoundError as error:
+        raise not_found(error) from error
+    return [JobEvaluationOutput.model_validate(row) for row in rows]
+
+
+@router.get("/{job_id}/comparison", response_model=list[JobEvaluationOutput])
+def compare_profiles(
+    job_id: str, evaluation_service: EvaluationService = Depends(get_evaluation_service)
+) -> list[JobEvaluationOutput]:
+    """Latest evaluation of the job for each profile, for side-by-side comparison."""
+    try:
+        rows = evaluation_service.latest_per_profile(job_id)
+    except JobNotFoundError as error:
+        raise not_found(error) from error
+    return [JobEvaluationOutput.model_validate(row) for row in rows]
 
 
 @router.get("/{job_id}/evaluations/latest", response_model=JobEvaluationOutput | None)

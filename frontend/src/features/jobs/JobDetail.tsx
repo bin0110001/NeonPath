@@ -31,6 +31,8 @@ export function JobDetail() {
   const [workflow, setWorkflow] = useState<WorkflowState | null>(null);
   const [history, setHistory] = useState<StatusHistoryEntry[]>([]);
   const [evaluation, setEvaluation] = useState<JobEvaluation | null>(null);
+  const [comparison, setComparison] = useState<JobEvaluation[]>([]);
+  const [evaluationHistory, setEvaluationHistory] = useState<JobEvaluation[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -62,14 +64,18 @@ export function JobDetail() {
   const loadProfileState = useCallback(async () => {
     if (!jobId || !profileId) return;
     const query = `profile_id=${encodeURIComponent(profileId)}`;
-    const [state, entries, latest] = await Promise.all([
+    const [state, entries, latest, compared, evaluations] = await Promise.all([
       getJson<WorkflowState>(`${base}/jobs/${jobId}/workflow?${query}`),
       getJson<StatusHistoryEntry[]>(`${base}/jobs/${jobId}/status-history?${query}`),
       getJson<JobEvaluation | null>(`${base}/jobs/${jobId}/evaluations/latest?${query}`),
+      getJson<JobEvaluation[]>(`${base}/jobs/${jobId}/comparison`),
+      getJson<JobEvaluation[]>(`${base}/jobs/${jobId}/evaluations?${query}`),
     ]);
     setWorkflow(state);
     setHistory(entries);
     setEvaluation(latest);
+    setComparison(compared);
+    setEvaluationHistory(evaluations);
   }, [jobId, profileId]);
 
   useEffect(() => {
@@ -99,6 +105,8 @@ export function JobDetail() {
 
   const act = (action: Action) => post(action, { profile_id: profileId });
   const evaluate = () => post("evaluate", { profile_id: profileId });
+  const evaluateAll = () => post("evaluate-all", {});
+  const profileName = (id: string) => profiles.find((p) => p.id === id)?.display_name ?? id;
 
   if (error) return <div role="alert">Error: {error}</div>;
   if (!job) return <div>Loading job details...</div>;
@@ -206,6 +214,48 @@ export function JobDetail() {
                 {evaluation ? "Re-evaluate" : "Evaluate"}
               </button>
               {evaluation && <EvaluationView evaluation={evaluation} />}
+              {evaluationHistory.length > 1 && (
+                <details>
+                  <summary>Evaluation history ({evaluationHistory.length})</summary>
+                  <ol>
+                    {evaluationHistory.map((item) => (
+                      <li key={item.id}>
+                        {new Date(item.created_at).toLocaleString()}: {Math.round(item.overall_score * 100)}% (
+                        {item.evaluator_version})
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              )}
+            </div>
+
+            <div className="job-section">
+              <h3>Compare profiles</h3>
+              <button onClick={() => void evaluateAll()}>Evaluate for all profiles</button>
+              {comparison.length > 0 && (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Profile</th>
+                      <th>Overall</th>
+                      <th>Confidence</th>
+                      <th>Blockers</th>
+                      <th>Why</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {comparison.map((item) => (
+                      <tr key={item.profile_id}>
+                        <td>{profileName(item.profile_id)}</td>
+                        <td>{Math.round(item.overall_score * 100)}%</td>
+                        <td>{Math.round((item.confidence ?? 0) * 100)}%</td>
+                        <td>{item.blockers.length > 0 ? item.blockers.join("; ") : "none"}</td>
+                        <td>{[...item.strengths.slice(0, 2), ...item.gaps.slice(0, 2)].join("; ")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </>
         )}

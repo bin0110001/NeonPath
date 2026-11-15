@@ -172,8 +172,9 @@ def test_evaluation_history_is_append_only_and_profile_scoped(
     client.post(f"/api/v1/jobs/{job_id}/evaluate", json={"profile_id": b})
     all_rows = client.get(f"/api/v1/jobs/{job_id}/evaluations").json()
     only_a = client.get(f"/api/v1/jobs/{job_id}/evaluations", params={"profile_id": a}).json()
-    assert len(all_rows) == 3
-    assert len(only_a) == 2
+    # import auto-evaluated both profiles (1 each), then 2 more for A and 1 more for B
+    assert len(all_rows) == 5
+    assert len(only_a) == 3
     assert {row["profile_id"] for row in only_a} == {a}
     latest = client.get(f"/api/v1/jobs/{job_id}/evaluations/latest", params={"profile_id": b}).json()
     assert latest["profile_id"] == b
@@ -189,3 +190,25 @@ def test_profile_rows_are_isolated(client: TestClient, engine, profiles: tuple[s
             select(JobStatusHistoryModel).where(JobStatusHistoryModel.profile_id == b)
         ).all()
     assert rows == []
+
+
+def test_import_auto_evaluates_every_profile(client: TestClient, profiles: tuple[str, str]) -> None:
+    job_id = import_job(client)
+    rows = client.get(f"/api/v1/jobs/{job_id}/evaluations").json()
+    assert {row["profile_id"] for row in rows} == set(profiles)
+
+
+def test_evaluate_all_keeps_history_and_comparison_shows_latest(
+    client: TestClient, profiles: tuple[str, str]
+) -> None:
+    job_id = import_job(client)
+    again = client.post(f"/api/v1/jobs/{job_id}/evaluate-all")
+    assert again.status_code == 201
+    assert {row["profile_id"] for row in again.json()} == set(profiles)
+    assert len(client.get(f"/api/v1/jobs/{job_id}/evaluations").json()) == 4  # nothing overwritten
+    comparison = client.get(f"/api/v1/jobs/{job_id}/comparison").json()
+    assert {row["profile_id"] for row in comparison} == set(profiles)
+    latest_ids = {row["id"] for row in again.json()}
+    assert {row["id"] for row in comparison} == latest_ids
+    assert client.get("/api/v1/jobs/nope/comparison").status_code == 404
+    assert client.post("/api/v1/jobs/nope/evaluate-all").status_code == 404
