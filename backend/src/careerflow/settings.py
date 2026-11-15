@@ -12,11 +12,19 @@ class Settings(BaseSettings):
     # Comma-separated literal values that must never appear in logs (e.g. API keys).
     log_redact_values: str = ""
     demo_mode: bool = False
+    # AI is optional: with AI_ENABLED=false every non-AI workflow keeps working.
+    ai_enabled: bool = False
+    ai_provider: str = "fixture"
+    ai_model: str = ""
+    ai_endpoint: str = ""
+    ai_api_key: str = ""
+    ai_timeout_seconds: float = 30.0
     auth_mode: str = "local"
 
     @property
     def redact_value_list(self) -> list[str]:
-        return [v.strip() for v in self.log_redact_values.split(",") if v.strip()]
+        values = [v.strip() for v in self.log_redact_values.split(",") if v.strip()]
+        return [*values, self.ai_api_key] if self.ai_api_key else values
 
     @property
     def cors_origin_list(self) -> list[str]:
