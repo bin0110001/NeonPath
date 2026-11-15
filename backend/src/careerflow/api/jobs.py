@@ -32,9 +32,13 @@ from careerflow.application.jobs.queries import JobFilters, JobQueryService, Sor
 from careerflow.application.jobs.service import JobNotFoundError, JobService
 from careerflow.application.jobs.workflow import JobWorkflowService
 from careerflow.application.profiles.service import ProfileNotFoundError, ProfileService
+from careerflow.application.sources.ingest import IngestionService
 from careerflow.domain.ai.ports import AiError
 from careerflow.domain.jobs.workflow import InvalidTransitionError, WorkflowStatus
+from careerflow.domain.sources.ports import SourceError
+from careerflow.infrastructure.database.models import JobModel
 from careerflow.infrastructure.database.session import create_database_engine
+from careerflow.infrastructure.jobsources.simple import ManualJobAdapter
 from careerflow.infrastructure.llm.factory import build_provider
 from careerflow.settings import get_settings
 
@@ -157,25 +161,31 @@ def create_job(
 @router.post("/import", response_model=JobOutput, status_code=status.HTTP_201_CREATED)
 def import_job(
     payload: JobImport,
-    job_service: JobService = Depends(get_job_service),
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
 ) -> JobOutput:
-    """Manual or fixture import: description text is required, URL capture is optional.
+    """Manual/fixture import through the source-adapter framework (``ManualJobAdapter``).
 
-    The new job is evaluated (deterministic rules only) against every existing profile.
+    Description text is required, URL capture is optional. The new job is evaluated
+    (deterministic rules only) against every existing profile.
     """
-    job_values = payload.model_dump(exclude={"source", "requirements"})
-    job_values["status"] = "READY_FOR_REVIEW"
+    record = payload.model_dump(exclude={"source", "requirements"}, mode="json")
+    record["industry"] = payload.raw_metadata_json.get("industry")
+    record["requirements"] = [r.model_dump() for r in payload.requirements]
+    if payload.source and payload.source.source_url:
+        record["source_url"] = payload.source.source_url
+
+    def evaluate_new(job: JobModel) -> None:
+        evaluation_service.evaluate_job_for_all_profiles(job.id)
+
     try:
-        job = job_service.create_job(job_values)
-        if payload.source is not None:
-            job_service.add_source_record(job.id, payload.source.model_dump())
-        for requirement in payload.requirements:
-            job_service.add_requirement(job.id, requirement.model_dump())
-    except IntegrityError as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="job conflict") from error
-    evaluation_service.evaluate_job_for_all_profiles(job.id)
-    return JobOutput.model_validate(job)
+        adapter = ManualJobAdapter({"job": record})
+        ingestion = IngestionService(evaluation_service.session, on_created=evaluate_new)
+        result = ingestion.ingest(adapter)
+    except SourceError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+    if result.failed or not result.created:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="; ".join(result.errors) or "import failed")
+    return JobOutput.model_validate(result.created[0])
 
 
 @router.get("/{job_id}", response_model=JobOutput)

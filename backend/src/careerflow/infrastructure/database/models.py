@@ -332,3 +332,41 @@ class TaskModel(Base):
     error_code: Mapped[str | None] = mapped_column(String(100))
     error_message: Mapped[str | None] = mapped_column(Text)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class JobSourceModel(Base):
+    """A configured job source (adapter + settings) with its health state."""
+
+    __tablename__ = "job_sources"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(200), unique=True)
+    adapter: Mapped[str] = mapped_column(String(100))
+    # Never put secrets here: use "<name>_env" keys that name an environment variable.
+    config_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_status: Mapped[str | None] = mapped_column(String(20))
+    health: Mapped[str] = mapped_column(String(20), default="UNKNOWN")
+    consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+
+class SourceRunModel(Base):
+    """One execution of a source: what it found and how it ended."""
+
+    __tablename__ = "source_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    source_id: Mapped[str] = mapped_column(ForeignKey("job_sources.id"), index=True)
+    trigger: Mapped[str] = mapped_column(String(20), default="manual")
+    status: Mapped[str] = mapped_column(String(20), default="RUNNING")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    discovered: Mapped[int] = mapped_column(Integer, default=0)
+    created: Mapped[int] = mapped_column(Integer, default=0)
+    updated: Mapped[int] = mapped_column(Integer, default=0)
+    failed: Mapped[int] = mapped_column(Integer, default=0)
+    error_code: Mapped[str | None] = mapped_column(String(100))
+    error_message: Mapped[str | None] = mapped_column(Text)

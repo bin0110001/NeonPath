@@ -18,7 +18,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from careerflow.infrastructure.database.models import TaskModel
+from careerflow.infrastructure.database.models import JobModel, TaskModel
 from careerflow.infrastructure.database.session import create_database_engine
 from careerflow.infrastructure.logging import configure_logging, log_context, secrets_from_url
 from careerflow.infrastructure.tasks.queue import TaskQueue
@@ -67,6 +67,25 @@ def _extract(session: Session, task: TaskModel) -> dict[str, Any] | None:
     client = AiClient(build_provider(settings), retry=RetryPolicy(timeout_seconds=settings.ai_timeout_seconds))
     outcome = RequirementExtractionService(session, client).extract(task.payload_json["job_id"])
     return {"mode": outcome.mode, "count": len(outcome.requirements)}
+
+
+@handler("run_source")
+def _run_source(session: Session, task: TaskModel) -> dict[str, Any] | None:
+    from careerflow.application.evaluations.service import EvaluationService
+    from careerflow.application.jobs.service import JobService
+    from careerflow.application.profiles.service import ProfileService
+    from careerflow.application.sources.ingest import IngestionService
+
+    evaluation = EvaluationService(JobService(session), ProfileService(session))
+
+    def evaluate_new(job: JobModel) -> None:
+        evaluation.evaluate_job_for_all_profiles(job.id)
+
+    service = IngestionService(session, on_created=evaluate_new)
+    run = service.run_source(task.payload_json["source_id"], trigger=task.payload_json.get("trigger", "task"))
+    if run.status == "FAILED":  # surface failures on the task as well as on the source run
+        raise RuntimeError(f"source run failed: {run.error_code}: {run.error_message}")
+    return {"run_id": run.id, "status": run.status, "created": run.created, "updated": run.updated}
 
 
 def run_one(factory: sessionmaker[Session], worker_id: str, **queue_options: Any) -> bool:
