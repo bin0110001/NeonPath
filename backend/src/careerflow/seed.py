@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from careerflow.infrastructure.database.models import (
     AchievementModel,
     ExperienceModel,
+    JobEvaluationModel,
     JobModel,
     ProfileContactModel,
     ProfileModel,
@@ -182,6 +183,27 @@ def seed_session(session: Session) -> None:
         if exists is None:
             session.add(JobModel(status="READY_FOR_REVIEW", **job))
     session.commit()
+    _evaluate_unevaluated(session)
+
+
+def _evaluate_unevaluated(session: Session) -> None:
+    """Give every seeded job a deterministic evaluation per profile (idempotent)."""
+    from careerflow.application.evaluations.service import EvaluationService
+    from careerflow.application.jobs.service import JobService
+    from careerflow.application.profiles.service import ProfileService
+
+    service = EvaluationService(JobService(session), ProfileService(session))
+    for job_id, profile_id in session.execute(
+        select(JobModel.id, ProfileModel.id).where(
+            ~select(JobEvaluationModel.id)
+            .where(
+                JobEvaluationModel.job_id == JobModel.id,
+                JobEvaluationModel.profile_id == ProfileModel.id,
+            )
+            .exists()
+        )
+    ).all():
+        service.evaluate_job_for_profile(job_id, profile_id)
 
 
 def seed_demo_data() -> None:

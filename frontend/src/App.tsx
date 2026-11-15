@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
-import { JobList } from "./features/jobs/JobList";
+import { JobsHome } from "./features/jobs/JobsHome";
 import { JobDetail } from "./features/jobs/JobDetail";
-import { ImportJob } from "./features/jobs/ImportJob";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 
 type Profile = { id: string; display_name: string; headline: string | null; summary: string | null };
@@ -89,7 +88,7 @@ export function App() {
         ) : (
           <Router>
             <Routes>
-              <Route path="/" element={<><ImportJob /><JobList /></>} />
+              <Route path="/" element={<JobsHome />} />
               <Route path="/jobs/:jobId" element={<JobDetail />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

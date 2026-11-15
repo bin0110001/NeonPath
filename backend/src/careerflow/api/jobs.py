@@ -1,14 +1,18 @@
 from collections.abc import Generator
+from datetime import datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from careerflow.api.schemas.jobs import (
+    DashboardOutput,
     EvaluateRequest,
     JobCreate,
     JobEvaluationOutput,
     JobImport,
+    JobListItem,
     JobOutput,
     JobRequirementCreate,
     JobRequirementOutput,
@@ -20,6 +24,7 @@ from careerflow.api.schemas.jobs import (
     WorkflowStatusOutput,
 )
 from careerflow.application.evaluations.service import EvaluationService
+from careerflow.application.jobs.queries import JobFilters, JobQueryService, SortKey
 from careerflow.application.jobs.service import JobNotFoundError, JobService
 from careerflow.application.jobs.workflow import JobWorkflowService
 from careerflow.application.profiles.service import ProfileNotFoundError, ProfileService
@@ -58,9 +63,77 @@ def not_found(error: Exception) -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{kind} not found")
 
 
-@router.get("", response_model=list[JobOutput])
-def list_jobs(job_service: JobService = Depends(get_job_service)) -> list[JobOutput]:
-    return [JobOutput.model_validate(job) for job in job_service.list_jobs()]
+def get_query_service(session: Session = Depends(get_session)) -> JobQueryService:
+    return JobQueryService(session)
+
+
+def _filters(
+    status_: Annotated[str | None, Query(alias="status")] = None,
+    min_score: Annotated[float | None, Query(ge=0, le=1)] = None,
+    remote_type: str | None = None,
+    location: str | None = None,
+    company: str | None = None,
+    source: str | None = None,
+    posted_after: datetime | None = None,
+    has_blockers: bool | None = None,
+    q: str | None = None,
+) -> JobFilters:
+    return JobFilters(
+        status=status_,
+        min_score=min_score,
+        remote_type=remote_type,
+        location=location,
+        company=company,
+        source=source,
+        posted_after=posted_after,
+        has_blockers=has_blockers,
+        search=q,
+    )
+
+
+@router.get("", response_model=list[JobListItem])
+def list_jobs(
+    response: Response,
+    profile_id: str,
+    filters: JobFilters = Depends(_filters),
+    sort: SortKey = "discovered_at",
+    descending: bool = True,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    queries: JobQueryService = Depends(get_query_service),
+) -> list[JobListItem]:
+    """Job inbox for one profile. Filtering, sorting and paging happen on the server.
+
+    The total number of matches is returned in the ``X-Total-Count`` header.
+    """
+    try:
+        rows, total = queries.search(profile_id, filters, sort, descending, limit, offset)
+    except ProfileNotFoundError as error:
+        raise not_found(error) from error
+    response.headers["X-Total-Count"] = str(total)
+    return [
+        JobListItem(
+            **JobOutput.model_validate(row.job).model_dump(),
+            workflow_status=row.workflow_status,
+            score=row.score,
+            has_blockers=row.has_blockers,
+        )
+        for row in rows
+    ]
+
+
+@router.get("/dashboard", response_model=DashboardOutput)
+def dashboard(
+    profile_id: str,
+    filters: JobFilters = Depends(_filters),
+    queries: JobQueryService = Depends(get_query_service),
+) -> DashboardOutput:
+    """Counts for the active profile, computed from the same query as the inbox."""
+    try:
+        summary = queries.dashboard(profile_id, filters)
+    except ProfileNotFoundError as error:
+        raise not_found(error) from error
+    return DashboardOutput(profile_id=profile_id, **vars(summary))
 
 
 @router.post("", response_model=JobOutput, status_code=status.HTTP_201_CREATED)

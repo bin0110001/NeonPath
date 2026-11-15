@@ -82,3 +82,12 @@ def test_four_scenarios(session: Session) -> None:
     # transferable-but-not-exact: Morgan lacks Azure but holds AWS (same cloud category)
     matches = ev[("morgan-rivera", "Blue Meridian Health")].transferable_matches  # type: ignore[attr-defined]
     assert any("Azure" in m and "AWS" in m for m in matches)
+
+
+def test_seed_evaluates_each_job_once_per_profile(session: Session) -> None:
+    from careerflow.infrastructure.database.models import JobEvaluationModel
+
+    expected = len(JOBS) * len(PROFILES)
+    assert count(session, JobEvaluationModel) == expected
+    seed_session(session)
+    assert count(session, JobEvaluationModel) == expected

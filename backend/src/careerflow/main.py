@@ -17,6 +17,7 @@ def create_app() -> FastAPI:
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Total-Count"],
     )
     app.include_router(health_router)
     app.include_router(profiles_router, prefix="/api/v1")

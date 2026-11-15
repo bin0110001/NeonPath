@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import type {
   Job,
   JobEvaluation,
@@ -23,11 +23,12 @@ type Action = "shortlist" | "save" | "reject" | "archive";
 
 export function JobDetail() {
   const { jobId } = useParams();
+  const [searchParams] = useSearchParams();
   const [job, setJob] = useState<Job | null>(null);
   const [sources, setSources] = useState<JobSourceRecord[]>([]);
   const [requirements, setRequirements] = useState<JobRequirement[]>([]);
   const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
-  const [profileId, setProfileId] = useState("");
+  const [profileId, setProfileId] = useState(searchParams.get("profile") ?? "");
   const [workflow, setWorkflow] = useState<WorkflowState | null>(null);
   const [history, setHistory] = useState<StatusHistoryEntry[]>([]);
   const [evaluation, setEvaluation] = useState<JobEvaluation | null>(null);

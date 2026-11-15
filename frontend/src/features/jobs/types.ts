@@ -106,3 +106,21 @@ export interface ProfileSummary {
   id: string;
   display_name: string;
 }
+
+export interface JobListItem extends Job {
+  workflow_status: WorkflowStatus;
+  score: number | null;
+  has_blockers: boolean | null;
+}
+
+export interface Dashboard {
+  profile_id: string;
+  total: number;
+  new_jobs: number;
+  needs_review: number;
+  high_fit: number;
+  shortlisted: number;
+  blocked: number;
+  unevaluated: number;
+  by_status: Record<string, number>;
+}

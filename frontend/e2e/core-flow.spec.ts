@@ -59,3 +59,23 @@ test("import then reject; a repeated reject is refused", async ({ page }) => {
   await expect(page.getByRole("alert")).toContainText("not allowed");
   await expect(page.getByTestId("workflow-status")).toHaveText("REJECTED");
 });
+
+test("dashboard numbers match the inbox for the active profile", async ({ page }) => {
+  await importJob(page, `Staff Engineer ${unique()}`);
+  await selectProfile(page, "Jordan Lee");
+  await page.getByRole("button", { name: "Shortlist" }).click();
+  await expect(page.getByTestId("workflow-status")).toHaveText("SHORTLISTED");
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Jobs" }).click();
+  await page.getByLabel("Active profile").selectOption({ label: "Jordan Lee" });
+  const shortlisted = Number(await page.getByTestId("tile-Shortlisted").textContent());
+  expect(shortlisted).toBeGreaterThanOrEqual(1);
+
+  await page.getByRole("button", { name: "Shortlisted" }).click(); // sets the status filter
+  await expect(page.getByText(`(${shortlisted} jobs)`)).toBeVisible();
+
+  // The other profile has not shortlisted anything.
+  await page.getByLabel("Active profile").selectOption({ label: "Morgan Rivera" });
+  await expect(page.getByTestId("tile-Shortlisted")).toHaveText("0");
+});

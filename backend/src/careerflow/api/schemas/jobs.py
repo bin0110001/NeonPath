@@ -99,6 +99,26 @@ class JobOutput(BaseModel):
     raw_metadata_json: dict[str, Any] = Field(default_factory=dict)
 
 
+class JobListItem(JobOutput):
+    """A job as seen by one profile: its workflow status and latest evaluation summary."""
+
+    workflow_status: str
+    score: float | None = None
+    has_blockers: bool | None = None
+
+
+class DashboardOutput(BaseModel):
+    profile_id: str
+    total: int
+    new_jobs: int
+    needs_review: int
+    high_fit: int
+    shortlisted: int
+    blocked: int
+    unevaluated: int
+    by_status: dict[str, int]
+
+
 class JobSourceRecordCreate(BaseModel):
     adapter: str = Field(min_length=1, max_length=100)
     external_id: str | None = Field(default=None, max_length=200)
