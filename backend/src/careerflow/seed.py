@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, true
 from sqlalchemy.orm import Session
 
 from careerflow.infrastructure.database.models import (
@@ -194,7 +194,10 @@ def _evaluate_unevaluated(session: Session) -> None:
 
     service = EvaluationService(JobService(session), ProfileService(session))
     for job_id, profile_id in session.execute(
-        select(JobModel.id, ProfileModel.id).where(
+        select(JobModel.id, ProfileModel.id)
+        .select_from(JobModel)
+        .join(ProfileModel, true())
+        .where(
             ~select(JobEvaluationModel.id)
             .where(
                 JobEvaluationModel.job_id == JobModel.id,

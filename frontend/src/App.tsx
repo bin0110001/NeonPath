@@ -12,6 +12,14 @@ export function App() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<string>("profiles"); // "profiles" or "jobs"
+  const [demoMode, setDemoMode] = useState(false);
+
+  useEffect(() => {
+    fetch(`${apiUrl}/api/v1/config`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((config: { demo_mode?: boolean } | null) => setDemoMode(config?.demo_mode === true))
+      .catch(() => setDemoMode(false));
+  }, []);
 
   async function loadProfiles() {
     try {
@@ -49,6 +57,11 @@ export function App() {
 
   return (
     <main>
+      {demoMode && (
+        <div role="status" className="demo-banner">
+          Demo mode: all data is fictional and external actions are disabled.
+        </div>
+      )}
       <h1>CareerFlow</h1>
       <p>Profile-first job discovery and preparation, with people in control.</p>
       {error && <p role="alert">{error}</p>}

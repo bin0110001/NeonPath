@@ -21,6 +21,7 @@ async function selectProfile(page: import("@playwright/test").Page, name: string
 
 test("seeded profiles exist", async ({ page }) => {
   await page.goto("/");
+  await expect(page.getByRole("status")).toContainText("Demo mode");
   await expect(page.getByRole("button", { name: "Jordan Lee" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Morgan Rivera" })).toBeVisible();
 });

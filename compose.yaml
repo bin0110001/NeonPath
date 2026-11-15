@@ -23,6 +23,10 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://careerflow:careerflow-dev-password@db:5432/careerflow}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      DEMO_MODE: ${DEMO_MODE:-true}
+      AUTH_MODE: ${AUTH_MODE:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_REDACT_VALUES: ${LOG_REDACT_VALUES:-}
     depends_on:
       db:
         condition: service_healthy
