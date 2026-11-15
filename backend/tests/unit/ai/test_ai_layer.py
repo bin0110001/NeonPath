@@ -7,7 +7,9 @@ from pydantic import BaseModel
 
 import careerflow
 from careerflow.application.ai.client import AiClient, RetryPolicy
+from careerflow.application.ai.config import effective_config
 from careerflow.application.ai.prompts import PromptNotFoundError, PromptRegistry
+from careerflow.domain.ai.config import AiConfig
 from careerflow.domain.ai.ports import (
     AiInvalidResponseError,
     AiProviderError,
@@ -185,29 +187,54 @@ def test_prompt_registry() -> None:
 # --- configuration ---------------------------------------------------------------------------
 
 
+def cfg(**kw: object) -> AiConfig:
+    values: dict[str, object] = {"enabled": False, "provider": "fixture", "model": "", "endpoint": ""}
+    values.update(kw)
+    return AiConfig(**values)  # type: ignore[arg-type]
+
+
 def test_ai_is_disabled_by_default() -> None:
     assert Settings().ai_enabled is False
-    assert isinstance(build_provider(Settings()), DisabledProvider)
+    assert isinstance(build_provider(effective_config(None, Settings())), DisabledProvider)
 
 
 def test_fixture_provider_when_enabled_and_unknown_provider_rejected() -> None:
-    assert build_provider(Settings(ai_enabled=True, ai_provider="fixture")).name == "fixture"
-    with pytest.raises(ValueError, match="unknown AI_PROVIDER"):
-        build_provider(Settings(ai_enabled=True, ai_provider="skynet"))
+    assert build_provider(cfg(enabled=True, provider="fixture")).name == "fixture"
+    with pytest.raises(ValueError, match="unknown AI provider"):
+        build_provider(cfg(enabled=True, provider="skynet"))
 
 
 def test_status_endpoint_reports_unavailable_not_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    get_settings.cache_clear()
+    from collections.abc import Generator
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from sqlalchemy.pool import StaticPool
+
+    from careerflow.api.ai import get_session
+    from careerflow.infrastructure.database.models import Base
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+
+    def override() -> Generator[Session]:
+        with Session(engine) as session:
+            yield session
+
+    def status_body() -> dict[str, object]:
+        get_settings.cache_clear()
+        app = create_app()
+        app.dependency_overrides[get_session] = override
+        response = TestClient(app).get("/api/v1/ai/status")
+        assert response.status_code == 200
+        return dict(response.json())
+
     try:
-        body = TestClient(create_app()).get("/api/v1/ai/status").json()
-        assert body == {"enabled": False, "provider": "disabled", "model": "none", "available": False}
+        assert status_body() == {"enabled": False, "provider": "disabled", "model": "none", "available": False}
         monkeypatch.setenv("AI_ENABLED", "true")
-        get_settings.cache_clear()
-        assert TestClient(create_app()).get("/api/v1/ai/status").json()["available"] is True
+        assert status_body()["available"] is True
         monkeypatch.setenv("AI_PROVIDER", "skynet")
-        get_settings.cache_clear()
-        broken = TestClient(create_app()).get("/api/v1/ai/status")
-        assert broken.status_code == 200 and broken.json()["available"] is False
+        assert status_body()["available"] is False
     finally:
         get_settings.cache_clear()
 

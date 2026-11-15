@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from careerflow.api.ai import router as ai_router
 from careerflow.api.config import router as config_router
@@ -32,6 +34,14 @@ def create_app() -> FastAPI:
         expose_headers=["X-Total-Count"],
     )
     install_request_context(app)
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(request: Request, error: RequestValidationError) -> JSONResponse:
+        # Same shape as FastAPI's default, minus the echoed ``input``/``ctx``: a rejected
+        # request body may contain a secret that must not be reflected back or logged.
+        detail = [{"loc": e["loc"], "msg": e["msg"], "type": e["type"]} for e in error.errors()]
+        return JSONResponse(status_code=422, content={"detail": detail})
+
     app.include_router(health_router)
     app.include_router(config_router, prefix="/api/v1")
     app.include_router(tasks_router, prefix="/api/v1")

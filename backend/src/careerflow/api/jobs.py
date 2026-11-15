@@ -24,7 +24,7 @@ from careerflow.api.schemas.jobs import (
     WorkflowActionRequest,
     WorkflowStatusOutput,
 )
-from careerflow.application.ai.client import AiClient, RetryPolicy
+from careerflow.application.ai.config import build_client
 from careerflow.application.ai.requirements import RequirementExtractionService
 from careerflow.application.evaluations.semantic import SemanticEvaluationService
 from careerflow.application.evaluations.service import EvaluationService
@@ -39,8 +39,6 @@ from careerflow.domain.sources.ports import SourceError
 from careerflow.infrastructure.database.models import JobModel
 from careerflow.infrastructure.database.session import create_database_engine
 from careerflow.infrastructure.jobsources.simple import ManualJobAdapter
-from careerflow.infrastructure.llm.factory import build_provider
-from careerflow.settings import get_settings
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -278,9 +276,7 @@ def add_requirement(
 
 
 def get_extraction_service(session: Session = Depends(get_session)) -> RequirementExtractionService:
-    settings = get_settings()
-    client = AiClient(build_provider(settings), retry=RetryPolicy(timeout_seconds=settings.ai_timeout_seconds))
-    return RequirementExtractionService(session, client)
+    return RequirementExtractionService(session, build_client(session))
 
 
 @router.post("/{job_id}/extract-requirements", response_model=ExtractionOutput)
@@ -334,10 +330,7 @@ def evaluate_job(
     """Run the deterministic evaluator; always appends a new evaluation row."""
     try:
         if payload.semantic:
-            settings = get_settings()
-            client = AiClient(
-                build_provider(settings), retry=RetryPolicy(timeout_seconds=settings.ai_timeout_seconds)
-            )
+            client = build_client(evaluation_service.session)
             row = SemanticEvaluationService(evaluation_service, client).evaluate(job_id, payload.profile_id)
         else:
             row = evaluation_service.evaluate_job_for_profile(job_id, payload.profile_id)

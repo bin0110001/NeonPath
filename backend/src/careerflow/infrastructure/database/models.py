@@ -464,3 +464,19 @@ class SearchRunModel(Base):
     failed: Mapped[int] = mapped_column(Integer, default=0)
     error_code: Mapped[str | None] = mapped_column(String(100))
     error_message: Mapped[str | None] = mapped_column(Text)
+
+
+class AiConfigModel(Base):
+    """The user's AI provider selection. Secrets are never stored: the API key comes
+    from the AI_API_KEY environment variable."""
+
+    __tablename__ = "ai_config"
+
+    id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    provider: Mapped[str] = mapped_column(String(50))
+    model: Mapped[str] = mapped_column(String(200), default="")
+    endpoint: Mapped[str] = mapped_column(String(500), default="")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

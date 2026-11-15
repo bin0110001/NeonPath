@@ -60,13 +60,10 @@ def _evaluate_job(session: Session, task: TaskModel) -> dict[str, Any] | None:
 
 @handler("extract_requirements")
 def _extract(session: Session, task: TaskModel) -> dict[str, Any] | None:
-    from careerflow.application.ai.client import AiClient, RetryPolicy
+    from careerflow.application.ai.config import build_client
     from careerflow.application.ai.requirements import RequirementExtractionService
-    from careerflow.infrastructure.llm.factory import build_provider
 
-    settings = get_settings()
-    client = AiClient(build_provider(settings), retry=RetryPolicy(timeout_seconds=settings.ai_timeout_seconds))
-    outcome = RequirementExtractionService(session, client).extract(task.payload_json["job_id"])
+    outcome = RequirementExtractionService(session, build_client(session)).extract(task.payload_json["job_id"])
     return {"mode": outcome.mode, "count": len(outcome.requirements)}
 
 
