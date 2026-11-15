@@ -23,6 +23,7 @@ from careerflow.api.schemas.profiles import (
     EducationOutput,
     ExperienceInput,
     ExperienceOutput,
+    PackageExport,
     PortfolioInput,
     PortfolioOutput,
     ProfileExport,
@@ -39,7 +40,9 @@ from careerflow.api.schemas.profiles import (
     SkillInput,
     SkillOutput,
     SkillUpdate,
+    VariantExport,
 )
+from careerflow.application.applications.resume import ResumeService
 from careerflow.application.maintenance import MaintenanceService
 from careerflow.application.profiles.service import (
     ProfileItemNotFoundError,
@@ -48,11 +51,14 @@ from careerflow.application.profiles.service import (
 )
 from careerflow.infrastructure.database.models import (
     AchievementModel,
+    ApplicationPackageModel,
     EducationModel,
     ExperienceModel,
+    JobModel,
     PortfolioItemModel,
     ProfileContactModel,
     ProfileSkillModel,
+    ResumeVariantModel,
     RoleFamilyModel,
     RoleTargetModel,
     ScoringPreferenceModel,
@@ -302,14 +308,23 @@ def export_profile(
     profile = require_profile(service, profile_id)
     experiences = service.list_experiences(profile_id)
     index = {e.id: i for i, e in enumerate(experiences)}
+    achievement_rows = service.list_achievements(profile_id)
     achievements = []
-    for item in service.list_achievements(profile_id):
+    for item in achievement_rows:
         exported = AchievementExport.model_validate(item, from_attributes=True)
         exported.experience_index = index.get(item.experience_id or "")
         exported.experience_id = None
         achievements.append(exported)
     search = service.get_search_preferences(profile_id)
     scoring = service.get_scoring_preferences(profile_id)
+    family_rows = service.list_profile_items(RoleFamilyModel, profile_id)
+    variants, packages = _export_resume(
+        service.session,
+        profile_id,
+        {e.id: i for i, e in enumerate(experiences)},
+        {a.id: i for i, a in enumerate(achievement_rows)},
+        {f.id: i for i, f in enumerate(family_rows)},
+    )
 
     def items(model: type[Any], schema: type[Any]) -> list[Any]:
         return [schema.model_validate(i, from_attributes=True) for i in service.list_profile_items(model, profile_id)]
@@ -327,7 +342,7 @@ def export_profile(
         ],
         education=items(EducationModel, EducationInput),
         portfolio=items(PortfolioItemModel, PortfolioInput),
-        role_families=items(RoleFamilyModel, RoleFamilyInput),
+        role_families=[RoleFamilyInput.model_validate(f, from_attributes=True) for f in family_rows],
         role_targets=items(RoleTargetModel, RoleTargetInput),
         search_preferences=SearchPreferenceInput.model_validate(search, from_attributes=True)
         if search
@@ -335,7 +350,55 @@ def export_profile(
         scoring_preferences=ScoringPreferenceInput.model_validate(scoring, from_attributes=True)
         if scoring
         else None,
+        resume_variants=variants,
+        application_packages=packages,
     )
+
+
+def _export_resume(
+    session: Any,
+    profile_id: str,
+    experience_index: dict[str, int],
+    achievement_index: dict[str, int],
+    family_index: dict[str, int],
+) -> tuple[list[VariantExport], list[PackageExport]]:
+    resume = ResumeService(session)
+    template_names = {t.id: t.name for t in resume.list_templates()}
+    variant_rows = resume.list_variants(profile_id)
+    variant_index = {v.id: i for i, v in enumerate(variant_rows)}
+
+    def positions(ids: list[str], lookup: dict[str, int]) -> list[int]:
+        return [lookup[i] for i in ids if i in lookup]
+
+    variants = [
+        VariantExport(
+            name=v.name,
+            summary_strategy=v.summary_strategy,
+            preferred_skill_categories=list(v.preferred_skill_categories or []),
+            template_name=template_names.get(v.template_id or ""),
+            role_family_index=family_index.get(v.role_family_id or ""),
+            experience_indexes=positions(list(v.selected_experience_ids or []), experience_index),
+            achievement_indexes=positions(list(v.selected_achievement_ids or []), achievement_index),
+        )
+        for v in variant_rows
+    ]
+    packages = [
+        PackageExport(
+            job_id=p.job_id,
+            variant_index=variant_index.get(p.resume_variant_id or ""),
+            achievement_indexes=positions(list(p.recommended_achievement_ids or []), achievement_index),
+            recommended_skill_order=list(p.recommended_skill_order or []),
+            summary_suggestion=p.summary_suggestion,
+            tailoring_notes=list(p.tailoring_notes or []),
+            missing_evidence=list(p.missing_evidence or []),
+            cover_letter_notes=list(p.cover_letter_notes or []),
+            outreach_draft=p.outreach_draft,
+            status=p.status,
+            provenance_json=dict(p.provenance_json or {}),
+        )
+        for p in resume.list_packages(profile_id)
+    ]
+    return variants, packages
 
 
 @router.post("/import", response_model=ProfileOutput, status_code=status.HTTP_201_CREATED)
@@ -357,23 +420,26 @@ def import_profile(
         if payload.contact:
             service.replace_contact(profile_id, payload.contact.model_dump())
         created = [service.add_experience(profile_id, e.model_dump()) for e in payload.experiences]
+        created_achievements: list[Any] = []
         for achievement in payload.achievements:
             values = achievement.model_dump(exclude={"experience_index"})
             position = achievement.experience_index
             linked = position is not None and 0 <= position < len(created)
             values["experience_id"] = created[position].id if linked else None  # type: ignore[index]
-            service.add_achievement(profile_id, values)
+            created_achievements.append(service.add_achievement(profile_id, values))
         for skill in payload.skills:
             service.add_skill(profile_id, skill.model_dump())
         groups: tuple[tuple[type[Any], list[Any]], ...] = (
             (EducationModel, payload.education),
             (PortfolioItemModel, payload.portfolio),
-            (RoleFamilyModel, payload.role_families),
             (RoleTargetModel, payload.role_targets),
         )
         for model, records in groups:
             for record in records:
                 service.add_profile_item(model, profile_id, record.model_dump())
+        created_families = [
+            service.add_profile_item(RoleFamilyModel, profile_id, f.model_dump()) for f in payload.role_families
+        ]
         if payload.search_preferences:
             service.replace_profile_item(
                 SearchPreferenceModel, profile_id, payload.search_preferences.model_dump()
@@ -382,6 +448,7 @@ def import_profile(
             service.replace_profile_item(
                 ScoringPreferenceModel, profile_id, payload.scoring_preferences.model_dump()
             )
+        _import_resume(service.session, profile_id, payload, created, created_achievements, created_families)
     except (IntegrityError, ValueError) as error:
         service.session.rollback()
         _discard_partial_import(service, profile_id)
@@ -391,10 +458,68 @@ def import_profile(
     return ProfileOutput.model_validate(profile)
 
 
+def _import_resume(
+    session: Any,
+    profile_id: str,
+    payload: ProfileExport,
+    experiences: list[Any],
+    achievements: list[Any],
+    families: list[Any],
+) -> None:
+    resume = ResumeService(session)
+    templates = {t.name: t.id for t in resume.list_templates()}
+
+    def ids(indexes: list[int], rows: list[Any]) -> list[str]:
+        return [rows[i].id for i in indexes if 0 <= i < len(rows)]
+
+    def pick(index: int | None, rows: list[Any]) -> Any:
+        return rows[index] if index is not None and 0 <= index < len(rows) else None
+
+    created_variants = []
+    for v in payload.resume_variants:
+        family = pick(v.role_family_index, families)
+        created_variants.append(
+            resume.create_variant(
+                profile_id,
+                {
+                    "name": v.name,
+                    "summary_strategy": v.summary_strategy,
+                    "preferred_skill_categories": v.preferred_skill_categories,
+                    "template_id": templates.get(v.template_name or ""),
+                    "role_family_id": family.id if family else None,
+                    "selected_experience_ids": ids(v.experience_indexes, experiences),
+                    "selected_achievement_ids": ids(v.achievement_indexes, achievements),
+                },
+            )
+        )
+    for p in payload.application_packages:
+        if session.get(JobModel, p.job_id) is None:
+            continue  # jobs are installation-wide; without the job there is nothing to attach to
+        variant = pick(p.variant_index, created_variants)
+        resume.save_package(
+            profile_id,
+            p.job_id,
+            {
+                "resume_variant_id": variant.id if variant else None,
+                "recommended_achievement_ids": ids(p.achievement_indexes, achievements),
+                "recommended_skill_order": p.recommended_skill_order,
+                "summary_suggestion": p.summary_suggestion,
+                "tailoring_notes": p.tailoring_notes,
+                "missing_evidence": p.missing_evidence,
+                "cover_letter_notes": p.cover_letter_notes,
+                "outreach_draft": p.outreach_draft,
+                "status": p.status,
+                "provenance_json": p.provenance_json,
+            },
+        )
+
+
 def _discard_partial_import(service: ProfileService, profile_id: str) -> None:
     """Remove everything created for a failed import so no half-imported profile remains."""
     session = service.session
     for model in (
+        ApplicationPackageModel,
+        ResumeVariantModel,
         ProfileContactModel,
         AchievementModel,
         ExperienceModel,

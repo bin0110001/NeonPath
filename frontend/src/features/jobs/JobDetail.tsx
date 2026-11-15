@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
+import { ApplicationPrep } from "../applications/ApplicationPrep";
 import type {
   Job,
   JobEvaluation,
@@ -240,6 +241,8 @@ export function JobDetail() {
                 </details>
               )}
             </div>
+
+            {jobId && <ApplicationPrep key={`${profileId}:${jobId}`} profileId={profileId} jobId={jobId} />}
 
             <div className="job-section">
               <h3>Compare profiles</h3>

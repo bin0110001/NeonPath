@@ -480,3 +480,57 @@ class AiConfigModel(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class ResumeTemplateModel(Base):
+    """A rendering template shared by all profiles (plan section 13)."""
+
+    __tablename__ = "resume_templates"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(200), unique=True)
+    format: Mapped[str] = mapped_column(String(20), default="markdown")
+    layout_config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    theme_config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class ResumeVariantModel(Base):
+    """A reusable selection of a profile's evidence for one kind of role."""
+
+    __tablename__ = "resume_variants"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    role_family_id: Mapped[str | None] = mapped_column(ForeignKey("role_families.id"))
+    template_id: Mapped[str | None] = mapped_column(ForeignKey("resume_templates.id"))
+    name: Mapped[str] = mapped_column(String(200))
+    summary_strategy: Mapped[str | None] = mapped_column(Text)
+    preferred_skill_categories: Mapped[list[str]] = mapped_column(JSON, default=list)
+    selected_experience_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    selected_achievement_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ApplicationPackageModel(Base):
+    """Approved preparation material for one profile applying to one job."""
+
+    __tablename__ = "application_packages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    resume_variant_id: Mapped[str | None] = mapped_column(ForeignKey("resume_variants.id"))
+    recommended_achievement_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    recommended_skill_order: Mapped[list[str]] = mapped_column(JSON, default=list)
+    summary_suggestion: Mapped[str | None] = mapped_column(Text)
+    tailoring_notes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    missing_evidence: Mapped[list[str]] = mapped_column(JSON, default=list)
+    cover_letter_notes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    outreach_draft: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="DRAFT")  # DRAFT | APPROVED
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    provenance_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

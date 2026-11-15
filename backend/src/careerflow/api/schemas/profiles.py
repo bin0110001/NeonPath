@@ -205,6 +205,32 @@ class AchievementExport(AchievementInput):
     experience_index: int | None = None
 
 
+class VariantExport(BaseModel):
+    """Resume variant with links expressed as positions in the same export."""
+
+    name: str
+    summary_strategy: str | None = None
+    preferred_skill_categories: list[str] = Field(default_factory=list)
+    template_name: str | None = None
+    role_family_index: int | None = None
+    experience_indexes: list[int] = Field(default_factory=list)
+    achievement_indexes: list[int] = Field(default_factory=list)
+
+
+class PackageExport(BaseModel):
+    job_id: str  # jobs are installation-wide; a package whose job is missing is skipped on import
+    variant_index: int | None = None
+    achievement_indexes: list[int] = Field(default_factory=list)
+    recommended_skill_order: list[str] = Field(default_factory=list)
+    summary_suggestion: str | None = None
+    tailoring_notes: list[str] = Field(default_factory=list)
+    missing_evidence: list[str] = Field(default_factory=list)
+    cover_letter_notes: list[str] = Field(default_factory=list)
+    outreach_draft: str | None = None
+    status: str = "DRAFT"
+    provenance_json: dict[str, Any] = Field(default_factory=dict)
+
+
 class ProfileExport(BaseModel):
     """Versioned export envelope. v1 (profile/contact/experience/achievements) is still accepted."""
 
@@ -220,3 +246,5 @@ class ProfileExport(BaseModel):
     role_targets: list[RoleTargetInput] = Field(default_factory=list)
     search_preferences: SearchPreferenceInput | None = None
     scoring_preferences: ScoringPreferenceInput | None = None
+    resume_variants: list[VariantExport] = Field(default_factory=list)
+    application_packages: list[PackageExport] = Field(default_factory=list)

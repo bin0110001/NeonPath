@@ -6,6 +6,7 @@ from dataclasses import asdict
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from careerflow.application.ai.client import AiClient
 from careerflow.application.evaluations.mappers import (
@@ -49,33 +50,36 @@ class SemanticEvaluationOut(BaseModel):
     explanation: str = ""
 
 
+def collect_evidence(session: Session, profile_id: str) -> dict[str, str]:
+    """Real profile records the model may cite: id -> one-line summary."""
+    found: dict[str, str] = {}
+    for e in session.scalars(select(ExperienceModel).where(ExperienceModel.profile_id == profile_id)):
+        found[f"experience:{e.id}"] = f"{e.title} at {e.organization}. {e.description or ''}".strip()
+    for a in session.scalars(select(AchievementModel).where(AchievementModel.profile_id == profile_id)):
+        detail = " ".join(filter(None, [a.situation, a.action, a.result]))
+        found[f"achievement:{a.id}"] = f"{a.title}. {detail} {', '.join(a.technologies or [])}".strip()
+    rows = session.execute(
+        select(ProfileSkillModel, SkillModel)
+        .join(SkillModel, SkillModel.id == ProfileSkillModel.skill_id)
+        .where(ProfileSkillModel.profile_id == profile_id)
+    )
+    for link, skill in rows:
+        years = f", {link.years_experience:g} years" if link.years_experience else ""
+        found[f"skill:{skill.id}"] = f"{skill.canonical_name} ({skill.category or 'skill'}{years})"
+    for ed in session.scalars(select(EducationModel).where(EducationModel.profile_id == profile_id)):
+        found[f"education:{ed.id}"] = f"{ed.degree or ''} {ed.field_of_study or ''} {ed.institution}".strip()
+    for p in session.scalars(select(PortfolioItemModel).where(PortfolioItemModel.profile_id == profile_id)):
+        found[f"portfolio:{p.id}"] = f"{p.name}. {p.description or ''}".strip()
+    return found
+
+
 class SemanticEvaluationService:
     def __init__(self, base: EvaluationService, ai: AiClient) -> None:
         self.base = base
         self.ai = ai
 
     def evidence(self, profile_id: str) -> dict[str, str]:
-        """Real profile records the model may cite: id -> one-line summary."""
-        session = self.base.session
-        found: dict[str, str] = {}
-        for e in session.scalars(select(ExperienceModel).where(ExperienceModel.profile_id == profile_id)):
-            found[f"experience:{e.id}"] = f"{e.title} at {e.organization}. {e.description or ''}".strip()
-        for a in session.scalars(select(AchievementModel).where(AchievementModel.profile_id == profile_id)):
-            detail = " ".join(filter(None, [a.situation, a.action, a.result]))
-            found[f"achievement:{a.id}"] = f"{a.title}. {detail} {', '.join(a.technologies or [])}".strip()
-        rows = session.execute(
-            select(ProfileSkillModel, SkillModel)
-            .join(SkillModel, SkillModel.id == ProfileSkillModel.skill_id)
-            .where(ProfileSkillModel.profile_id == profile_id)
-        )
-        for link, skill in rows:
-            years = f", {link.years_experience:g} years" if link.years_experience else ""
-            found[f"skill:{skill.id}"] = f"{skill.canonical_name} ({skill.category or 'skill'}{years})"
-        for ed in session.scalars(select(EducationModel).where(EducationModel.profile_id == profile_id)):
-            found[f"education:{ed.id}"] = f"{ed.degree or ''} {ed.field_of_study or ''} {ed.institution}".strip()
-        for p in session.scalars(select(PortfolioItemModel).where(PortfolioItemModel.profile_id == profile_id)):
-            found[f"portfolio:{p.id}"] = f"{p.name}. {p.description or ''}".strip()
-        return found
+        return collect_evidence(self.base.session, profile_id)
 
     def evaluate(self, job_id: str, profile_id: str) -> JobEvaluationModel:
         """Deterministic + semantic evaluation. If AI is unavailable the plain deterministic

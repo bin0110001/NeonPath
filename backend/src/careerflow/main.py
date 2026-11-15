@@ -11,6 +11,7 @@ from careerflow.api.jobs import router as jobs_router
 from careerflow.api.profile_items import router as profile_items_router
 from careerflow.api.profiles import router as profiles_router
 from careerflow.api.request_context import install_request_context
+from careerflow.api.resume import router as resume_router
 from careerflow.api.searches import router as searches_router
 from careerflow.api.sources import router as sources_router
 from careerflow.api.tasks import router as tasks_router
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(duplicates_router, prefix="/api/v1")
     app.include_router(sources_router, prefix="/api/v1")
     app.include_router(searches_router, prefix="/api/v1")
+    app.include_router(resume_router, prefix="/api/v1")
     app.include_router(ai_router, prefix="/api/v1")
     app.include_router(profiles_router, prefix="/api/v1")
     app.include_router(profile_items_router, prefix="/api/v1")
