@@ -82,7 +82,17 @@ export interface JobEvaluation {
   blockers: string[];
   unknowns: string[];
   explanation: string | null;
+  prompt_version: string | null;
+  claims_json: EvaluationClaim[];
   created_at: string;
+}
+
+export interface EvaluationClaim {
+  text: string;
+  kind: "strength" | "transferable" | "gap";
+  basis: "evidence" | "inference" | "unverified";
+  evidence_ids: string[];
+  note: string | null;
 }
 
 export interface WorkflowState {

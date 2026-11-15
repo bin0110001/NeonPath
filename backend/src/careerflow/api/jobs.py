@@ -26,6 +26,7 @@ from careerflow.api.schemas.jobs import (
 )
 from careerflow.application.ai.client import AiClient, RetryPolicy
 from careerflow.application.ai.requirements import RequirementExtractionService
+from careerflow.application.evaluations.semantic import SemanticEvaluationService
 from careerflow.application.evaluations.service import EvaluationService
 from careerflow.application.jobs.queries import JobFilters, JobQueryService, SortKey
 from careerflow.application.jobs.service import JobNotFoundError, JobService
@@ -316,9 +317,18 @@ def evaluate_job(
 ) -> JobEvaluationOutput:
     """Run the deterministic evaluator; always appends a new evaluation row."""
     try:
-        row = evaluation_service.evaluate_job_for_profile(job_id, payload.profile_id)
+        if payload.semantic:
+            settings = get_settings()
+            client = AiClient(
+                build_provider(settings), retry=RetryPolicy(timeout_seconds=settings.ai_timeout_seconds)
+            )
+            row = SemanticEvaluationService(evaluation_service, client).evaluate(job_id, payload.profile_id)
+        else:
+            row = evaluation_service.evaluate_job_for_profile(job_id, payload.profile_id)
     except (JobNotFoundError, ProfileNotFoundError) as error:
         raise not_found(error) from error
+    except AiError as error:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=f"AI evaluation failed: {error}") from error
     return JobEvaluationOutput.model_validate(row)
 
 

@@ -7,6 +7,7 @@ append-only: every run adds a versioned row and earlier rows are never overwritt
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -20,6 +21,7 @@ from careerflow.application.jobs.service import JobService
 from careerflow.application.profiles.service import ProfileService
 from careerflow.domain.evaluations.service import (
     DeterministicEvaluator,
+    EvaluationResult,
     create_deterministic_evaluator,
 )
 from careerflow.infrastructure.database.models import JobEvaluationModel, ProfileModel
@@ -48,12 +50,27 @@ class EvaluationService:
         result = self.evaluator.evaluate(
             to_domain_job(job), to_domain_profile(self.session, profile, catalog), catalog
         )
+        return self.store(job_id, profile_id, result)
+
+    def store(
+        self,
+        job_id: str,
+        profile_id: str,
+        result: EvaluationResult,
+        provider: str | None = None,
+        model: str | None = None,
+        prompt_version: str | None = None,
+        claims: list[dict[str, Any]] | None = None,
+    ) -> JobEvaluationModel:
+        """Append a new evaluation row (history is never overwritten)."""
         evaluation = JobEvaluationModel(
             job_id=job_id,
             profile_id=profile_id,
             evaluator_version=result.evaluator_version,
-            model_provider=result.model_provider,
-            model_name=result.model_name,
+            model_provider=provider or result.model_provider,
+            model_name=model or result.model_name,
+            prompt_version=prompt_version,
+            claims_json=claims or [],
             overall_score=result.overall_score,
             confidence=result.confidence,
             dimension_scores_json=result.dimension_scores,

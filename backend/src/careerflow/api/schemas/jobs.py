@@ -190,11 +190,14 @@ class JobEvaluationOutput(BaseModel):
     blockers: list[str] = Field(default_factory=list)
     unknowns: list[str] = Field(default_factory=list)
     explanation: str | None = None
+    prompt_version: str | None = None
+    claims_json: list[dict[str, Any]] = Field(default_factory=list)
     created_at: datetime
 
 
 class EvaluateRequest(BaseModel):
     profile_id: str
+    semantic: bool = False  # also run the AI evaluation; falls back to deterministic if AI is off
 
 
 class WorkflowActionRequest(BaseModel):

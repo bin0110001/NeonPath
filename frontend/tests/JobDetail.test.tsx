@@ -38,6 +38,7 @@ function stubApi(state: { status: string }, posts: string[]) {
       if (url.includes("/workflow")) return json({ job_id: "j1", profile_id: "p1", status: state.status });
       if (url.includes("/status-history")) return json([]);
       if (url.includes("/evaluations/latest")) return json(null);
+      if (url.endsWith("/ai/status")) return json({ available: true });
       if (url.includes("/comparison")) {
         return json([
           { id: "e1", job_id: "j1", profile_id: "p1", overall_score: 0.95, confidence: 1, blockers: [], strengths: ["Strong role alignment"], gaps: [], unknowns: [], transferable_matches: [], dimension_scores_json: {}, evaluator_version: "deterministic-v2.0", created_at: "2026-01-01T00:00:00Z" },
@@ -90,5 +91,27 @@ describe("JobDetail", () => {
     expect(screen.getByText("40%")).toBeInTheDocument();
     expect(screen.getByText(/Weak role alignment/)).toBeInTheDocument();
     expect(screen.getByText("Morgan", { selector: "td" })).toBeInTheDocument();
+  });
+
+  it("offers AI evaluation and marks unverified claims", async () => {
+    stubApi({ status: "READY_FOR_REVIEW" }, []);
+    const base = (global.fetch as unknown as (u: string, i?: RequestInit) => Promise<unknown>);
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes("/evaluations/latest")) {
+        return { ok: true, status: 200, json: async () => ({
+          id: "e9", job_id: "j1", profile_id: "p1", overall_score: 0.8, confidence: 0.9, blockers: [], strengths: [],
+          gaps: [], unknowns: [], transferable_matches: [], dimension_scores_json: {}, evaluator_version: "hybrid-v1+deterministic-v2.0",
+          prompt_version: "v1", created_at: "2026-01-01T00:00:00Z",
+          claims_json: [
+            { text: "Led platform", kind: "strength", basis: "evidence", evidence_ids: ["experience:1"], note: null },
+            { text: "Culture fit", kind: "strength", basis: "unverified", evidence_ids: [], note: "no evidence cited" },
+          ] }) };
+      }
+      return base(url, init);
+    }));
+    renderDetail();
+    expect(await screen.findByRole("button", { name: "Evaluate with AI" })).toBeInTheDocument();
+    expect(await screen.findByText(/evidence: 1 profile record/)).toBeInTheDocument();
+    expect(screen.getByText(/unverified: no evidence cited/)).toBeInTheDocument();
   });
 });

@@ -169,6 +169,10 @@ class DeterministicEvaluator:
             explanation=self._explain(job, profile, scores, overall, confidence, blockers, gaps),
         )
 
+    def combine(self, scores: dict[str, float], profile: Profile) -> tuple[float, float]:
+        """Weighted overall score and confidence for ``scores`` using the profile's weights."""
+        return self._combine(scores, self._weights(profile))
+
     # -- scoring ---------------------------------------------------------------------------
 
     @staticmethod

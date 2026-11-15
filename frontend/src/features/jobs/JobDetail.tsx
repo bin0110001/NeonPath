@@ -32,6 +32,7 @@ export function JobDetail() {
   const [workflow, setWorkflow] = useState<WorkflowState | null>(null);
   const [history, setHistory] = useState<StatusHistoryEntry[]>([]);
   const [evaluation, setEvaluation] = useState<JobEvaluation | null>(null);
+  const [aiAvailable, setAiAvailable] = useState(false);
   const [comparison, setComparison] = useState<JobEvaluation[]>([]);
   const [evaluationHistory, setEvaluationHistory] = useState<JobEvaluation[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +62,12 @@ export function JobDetail() {
       cancelled = true;
     };
   }, [jobId]);
+
+  useEffect(() => {
+    getJson<{ available: boolean }>(`${base}/ai/status`)
+      .then((status) => setAiAvailable(status.available))
+      .catch(() => setAiAvailable(false));
+  }, []);
 
   const loadProfileState = useCallback(async () => {
     if (!jobId || !profileId) return;
@@ -106,6 +113,7 @@ export function JobDetail() {
 
   const act = (action: Action) => post(action, { profile_id: profileId });
   const evaluate = () => post("evaluate", { profile_id: profileId });
+  const evaluateWithAi = () => post("evaluate", { profile_id: profileId, semantic: true });
   const evaluateAll = () => post("evaluate-all", {});
   const profileName = (id: string) => profiles.find((p) => p.id === id)?.display_name ?? id;
 
@@ -214,6 +222,9 @@ export function JobDetail() {
               <button onClick={() => void evaluate()}>
                 {evaluation ? "Re-evaluate" : "Evaluate"}
               </button>
+              {aiAvailable && (
+                <button onClick={() => void evaluateWithAi()}>Evaluate with AI</button>
+              )}
               {evaluation && <EvaluationView evaluation={evaluation} />}
               {evaluationHistory.length > 1 && (
                 <details>
@@ -299,6 +310,25 @@ function EvaluationView({ evaluation }: { evaluation: JobEvaluation }) {
           ))}
         </ul>
       </div>
+      {evaluation.claims_json.length > 0 && (
+        <div>
+          <strong>AI claims (prompt {evaluation.prompt_version}):</strong>
+          <ul>
+            {evaluation.claims_json.map((claim, index) => (
+              <li key={index}>
+                [{claim.kind}] {claim.text}{" "}
+                {claim.basis === "evidence" ? (
+                  <span title={claim.evidence_ids.join(", ")}>
+                    — evidence: {claim.evidence_ids.length} profile record(s)
+                  </span>
+                ) : (
+                  <em>({claim.basis}{claim.note ? `: ${claim.note}` : ""})</em>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <List title="Strengths" items={evaluation.strengths} />
       <List title="Transferable matches" items={evaluation.transferable_matches} />
       <List title="Gaps" items={evaluation.gaps} />

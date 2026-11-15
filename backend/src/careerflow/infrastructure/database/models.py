@@ -273,6 +273,9 @@ class JobEvaluationModel(Base):
     blockers: Mapped[list[str]] = mapped_column(JSON, default=list)
     unknowns: Mapped[list[str]] = mapped_column(JSON, default=list)
     explanation: Mapped[str | None] = mapped_column(Text)
+    # Semantic evaluations: prompt used and the evidence-linked claims behind the text.
+    prompt_version: Mapped[str | None] = mapped_column(String(50))
+    claims_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
