@@ -1,3 +1,4 @@
+import { resolveActive, useActiveProfileId } from "../profiles/activeProfile";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -134,7 +135,7 @@ export function MetricsPanel({ metrics }: { metrics: Metrics }) {
 
 export function Pipeline() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [profileId, setProfileId] = useState("");
+  const [profileId, setProfileId] = useActiveProfileId();
   const [columns, setColumns] = useState<Record<string, Card[]>>({});
   const [overview, setOverview] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -146,10 +147,10 @@ export function Pipeline() {
     getJson<Profile[]>(`${base}/profiles`)
       .then((loaded) => {
         setProfiles(loaded);
-        setProfileId((current) => current || loaded[0]?.id || "");
+        setProfileId((current) => resolveActive(current, loaded.map((p) => p.id)));
       })
       .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to load profiles"));
-  }, []);
+  }, [setProfileId]);
 
   useEffect(() => {
     if (!profileId) return;

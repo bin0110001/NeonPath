@@ -1,3 +1,4 @@
+import { resolveActive, useActiveProfileId } from "../profiles/activeProfile";
 import { useEffect, useState } from "react";
 import { Dashboard } from "./Dashboard";
 import { ImportJob } from "./ImportJob";
@@ -10,7 +11,7 @@ const STATUSES = ["READY_FOR_REVIEW", "SHORTLISTED", "SAVED", "REJECTED", "ARCHI
 
 export function JobsHome() {
   const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
-  const [profileId, setProfileId] = useState("");
+  const [profileId, setProfileId] = useActiveProfileId();
   const [filters, setFilters] = useState<InboxFilters>(defaultFilters);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,12 +23,12 @@ export function JobsHome() {
       })
       .then((data) => {
         setProfiles(data);
-        setProfileId((current) => current || data[0]?.id || "");
+        setProfileId((current) => resolveActive(current, data.map((p) => p.id)));
       })
       .catch((reason: unknown) =>
         setError(reason instanceof Error ? reason.message : "Unable to load profiles"),
       );
-  }, []);
+  }, [setProfileId]);
 
   const set = <K extends keyof InboxFilters>(key: K, value: InboxFilters[K]) =>
     setFilters((current) => ({ ...current, [key]: value }));

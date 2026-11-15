@@ -8,14 +8,17 @@ import { AiSettings } from "./features/settings/AiSettings";
 import { SearchesPage } from "./features/searches/SearchesPage";
 import { TaskList } from "./features/tasks/TaskList";
 import { JobDetail } from "./features/jobs/JobDetail";
+import { ProfileEditor } from "./features/profiles/ProfileEditor";
+import { resolveActive, useActiveProfileId } from "./features/profiles/activeProfile";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 
-type Profile = { id: string; display_name: string; headline: string | null; summary: string | null };
+type Profile = { id: string; slug: string; display_name: string; headline: string | null; summary: string | null; timezone: string };
 const apiUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 export function App() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [selected, setSelected] = useState<Profile | null>(null);
+  const [activeId, setActiveId] = useActiveProfileId();
+  const selected = profiles.find((p) => p.id === activeId) ?? null;
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<string>("profiles"); // "profiles" or "jobs"
@@ -34,7 +37,7 @@ export function App() {
       if (!response.ok) throw new Error("Unable to load profiles");
       const data: Profile[] = await response.json();
       setProfiles(data);
-      setSelected((current) => current ?? data[0] ?? null);
+      setActiveId((current) => resolveActive(current, data.map((p) => p.id)));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to load profiles");
     }
@@ -43,6 +46,7 @@ export function App() {
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadProfiles(); }, 0);
     return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount
   }, []);
 
   async function createProfile(event: FormEvent) {
@@ -151,7 +155,7 @@ export function App() {
             <aside>
               <h2>Profiles</h2>
               {profiles.map((profile) => (
-                <button key={profile.id} onClick={() => setSelected(profile)}>{profile.display_name}</button>
+                <button key={profile.id} aria-pressed={profile.id === activeId} onClick={() => setActiveId(profile.id)}>{profile.display_name}</button>
               ))}
               <form onSubmit={createProfile}>
                 <label htmlFor="profile-name">New profile</label>
@@ -160,7 +164,7 @@ export function App() {
               </form>
             </aside>
             <section aria-live="polite">
-              {selected ? <><h2>{selected.display_name}</h2><h3>{selected.headline}</h3><p>{selected.summary ?? "No summary yet."}</p></> : <p>No profiles yet.</p>}
+              {selected ? <ProfileEditor key={selected.id} profile={{ ...selected, slug: selected.slug ?? "", timezone: selected.timezone ?? "UTC" }} onChanged={() => void loadProfiles()} /> : <p>No profiles yet.</p>}
             </section>
           </section>
         ) : (

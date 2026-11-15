@@ -7,7 +7,7 @@ This is the honest state of the project against the v1.0.0 success criteria in t
 - Start from a clean clone with `podman compose up -d --build` (rootless Podman on Windows via the machine VM): migrations, fictional seed data, API, worker and web all become healthy; the end-to-end suite passes against it.
 - Two fictional profiles score the same jobs differently, with reasons (`docs/guides/scoring.md`), and a manually pasted job can be imported, evaluated per profile, shortlisted, prepared and moved through the pipeline.
 - Backend: pytest (including PostgreSQL-only concurrency tests for the task queue and scheduler), ruff, mypy strict, migration upgrade → downgrade → upgrade and the autogenerate drift check on a clean database.
-- Frontend: vitest, eslint, tsc, production build, Playwright end-to-end flow.
+- Frontend: vitest, eslint, tsc, production build, Playwright end-to-end flows (import, evaluate, shortlist/reject, dashboard, profile edit persistence and isolation).
 - Renderers (Markdown, HTML, DOCX, PDF) work inside the backend image and reproduce byte-for-byte from retained inputs.
 - Documentation: relative links, ADR structure and the generated API reference are checked by tests.
 
@@ -23,7 +23,6 @@ This is the honest state of the project against the v1.0.0 success criteria in t
 
 ## Open items and known gaps
 
-- Profile editor UI is minimal: the API supports every entity type, but the UI only edits a profile's basics (issue #10).
 - Single-user, no login (`AUTH_MODE=local`); put a reverse proxy with authentication in front of any shared deployment.
 - PDF uses Latin-1 fonts; keyword/skill matching is word-based; calendar/mail support is Google only.
 - Prompts have only been exercised with the fixture provider; quality with real models is untested.

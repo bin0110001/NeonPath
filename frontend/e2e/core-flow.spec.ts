@@ -80,3 +80,27 @@ test("dashboard numbers match the inbox for the active profile", async ({ page }
   await page.getByLabel("Active profile").selectOption({ label: "Morgan Rivera" });
   await expect(page.getByTestId("tile-Shortlisted")).toHaveText("0");
 });
+
+test("profile edits persist across a reload and profiles never mix", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Morgan Rivera" }).click();
+  const headline = `Senior Data Scientist ${Date.now()}`;
+  await page.getByLabel("Headline").fill(headline);
+  await page.getByRole("button", { name: "Save overview" }).click();
+  await expect(page.getByText("Saved.")).toBeVisible();
+
+  await page.reload(); // the active profile and its data come back from the server
+  await expect(page.getByRole("heading", { name: "Morgan Rivera" })).toBeVisible();
+  await expect(page.getByLabel("Headline")).toHaveValue(headline);
+
+  await page.getByRole("tab", { name: "Experience" }).click();
+  await expect(page.getByText("Senior Data Scientist at Cedar Analytics")).toBeVisible();
+  await page.getByRole("button", { name: "Jordan Lee" }).click();
+  await page.getByRole("tab", { name: "Experience" }).click();
+  await expect(page.getByText("Principal Engineer at Northstar Systems")).toBeVisible();
+  await expect(page.getByText("Cedar Analytics")).toHaveCount(0);
+
+  await page.getByRole("tab", { name: "Skills" }).click();
+  await expect(page.getByText("Distributed Systems")).toBeVisible();
+  await expect(page.getByText("Tableau")).toHaveCount(0); // Morgan's skill
+});

@@ -1,3 +1,4 @@
+import { resolveActive, useActiveProfileId } from "../profiles/activeProfile";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -27,7 +28,7 @@ async function getJson<T>(url: string): Promise<T> {
 
 export function ResumeVariants() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [profileId, setProfileId] = useState("");
+  const [profileId, setProfileId] = useActiveProfileId();
   const [families, setFamilies] = useState<Family[]>([]);
   const [variants, setVariants] = useState<Variant[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -38,10 +39,10 @@ export function ResumeVariants() {
     getJson<Profile[]>(`${base}/profiles`)
       .then((loaded) => {
         setProfiles(loaded);
-        setProfileId((current) => current || loaded[0]?.id || "");
+        setProfileId((current) => resolveActive(current, loaded.map((p) => p.id)));
       })
       .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to load profiles"));
-  }, []);
+  }, [setProfileId]);
 
   useEffect(() => {
     if (!profileId) return;

@@ -1,3 +1,4 @@
+import { resolveActive, useActiveProfileId } from "../profiles/activeProfile";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 const apiUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -45,7 +46,7 @@ async function getJson<T>(url: string): Promise<T> {
 
 export function SearchesPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [profileId, setProfileId] = useState("");
+  const [profileId, setProfileId] = useActiveProfileId();
   const [sources, setSources] = useState<Source[]>([]);
   const [searches, setSearches] = useState<Search[]>([]);
   const [runs, setRuns] = useState<Record<string, Run[]>>({});
@@ -58,11 +59,11 @@ export function SearchesPage() {
       .then(([loadedProfiles, loadedSources]) => {
         setProfiles(loadedProfiles);
         setSources(loadedSources);
-        setProfileId((current) => current || loadedProfiles[0]?.id || "");
+        setProfileId((current) => resolveActive(current, loadedProfiles.map((p) => p.id)));
         setForm((current) => ({ ...current, sourceId: current.sourceId || loadedSources[0]?.id || "" }));
       })
       .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Unable to load"));
-  }, []);
+  }, [setProfileId]);
 
   useEffect(() => {
     if (!profileId) return;

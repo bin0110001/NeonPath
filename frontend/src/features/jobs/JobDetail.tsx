@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
+import { resolveActive, useActiveProfileId } from "../profiles/activeProfile";
 import { ApplicationPrep } from "../applications/ApplicationPrep";
 import { ArtifactsPanel } from "../applications/ArtifactsPanel";
 import type {
@@ -30,7 +31,8 @@ export function JobDetail() {
   const [sources, setSources] = useState<JobSourceRecord[]>([]);
   const [requirements, setRequirements] = useState<JobRequirement[]>([]);
   const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
-  const [profileId, setProfileId] = useState(searchParams.get("profile") ?? "");
+  const [activeId, setActiveId] = useActiveProfileId();
+  const [profileId, setProfileId] = useState(searchParams.get("profile") || activeId);
   const [workflow, setWorkflow] = useState<WorkflowState | null>(null);
   const [history, setHistory] = useState<StatusHistoryEntry[]>([]);
   const [evaluation, setEvaluation] = useState<JobEvaluation | null>(null);
@@ -55,7 +57,7 @@ export function JobDetail() {
         setSources(loadedSources);
         setRequirements(loadedRequirements);
         setProfiles(loadedProfiles);
-        setProfileId((current) => current || loadedProfiles[0]?.id || "");
+        setProfileId((current) => resolveActive(current, loadedProfiles.map((p) => p.id)));
       })
       .catch((reason: unknown) => {
         if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load job");
@@ -181,7 +183,10 @@ export function JobDetail() {
           <select
             id="active-profile"
             value={profileId}
-            onChange={(event) => setProfileId(event.target.value)}
+            onChange={(event) => {
+              setProfileId(event.target.value);
+              setActiveId(event.target.value);
+            }}
           >
             {profiles.map((profile) => (
               <option key={profile.id} value={profile.id}>
