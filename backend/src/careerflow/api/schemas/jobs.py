@@ -149,6 +149,20 @@ class JobRequirementOutput(JobRequirementCreate):
 
     id: str
     job_id: str
+    extractor: str | None = None  # None = entered manually; "ai" or "keyword" = extracted
+    provider: str | None = None
+    model_name: str | None = None
+    prompt_version: str | None = None
+
+
+class ExtractionOutput(BaseModel):
+    mode: str  # "ai" or "keyword"
+    summary: str = ""
+    provider: str | None = None
+    model: str | None = None
+    prompt_version: str | None = None
+    fallback_reason: str | None = None
+    requirements: list[JobRequirementOutput]
 
 
 class JobImport(JobCreate):

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from careerflow.api.schemas.jobs import (
     DashboardOutput,
     EvaluateRequest,
+    ExtractionOutput,
     JobCreate,
     JobEvaluationOutput,
     JobImport,
@@ -23,13 +24,18 @@ from careerflow.api.schemas.jobs import (
     WorkflowActionRequest,
     WorkflowStatusOutput,
 )
+from careerflow.application.ai.client import AiClient, RetryPolicy
+from careerflow.application.ai.requirements import RequirementExtractionService
 from careerflow.application.evaluations.service import EvaluationService
 from careerflow.application.jobs.queries import JobFilters, JobQueryService, SortKey
 from careerflow.application.jobs.service import JobNotFoundError, JobService
 from careerflow.application.jobs.workflow import JobWorkflowService
 from careerflow.application.profiles.service import ProfileNotFoundError, ProfileService
+from careerflow.domain.ai.ports import AiError
 from careerflow.domain.jobs.workflow import InvalidTransitionError, WorkflowStatus
 from careerflow.infrastructure.database.session import create_database_engine
+from careerflow.infrastructure.llm.factory import build_provider
+from careerflow.settings import get_settings
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -252,6 +258,35 @@ def add_requirement(
     except JobNotFoundError as error:
         raise not_found(error) from error
     return JobRequirementOutput.model_validate(requirement)
+
+
+def get_extraction_service(session: Session = Depends(get_session)) -> RequirementExtractionService:
+    settings = get_settings()
+    client = AiClient(build_provider(settings), retry=RetryPolicy(timeout_seconds=settings.ai_timeout_seconds))
+    return RequirementExtractionService(session, client)
+
+
+@router.post("/{job_id}/extract-requirements", response_model=ExtractionOutput)
+def extract_requirements(
+    job_id: str, service: RequirementExtractionService = Depends(get_extraction_service)
+) -> ExtractionOutput:
+    """Extract structured requirements (AI if enabled, keyword fallback otherwise)."""
+    try:
+        outcome = service.extract(job_id)
+    except JobNotFoundError as error:
+        raise not_found(error) from error
+    except AiError as error:
+        # e.g. the model kept returning invalid output; nothing was persisted
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=f"AI extraction failed: {error}") from error
+    return ExtractionOutput(
+        mode=outcome.mode,
+        summary=outcome.summary,
+        provider=outcome.provider,
+        model=outcome.model,
+        prompt_version=outcome.prompt_version,
+        fallback_reason=outcome.fallback_reason,
+        requirements=[JobRequirementOutput.model_validate(r) for r in outcome.requirements],
+    )
 
 
 @router.get("/{job_id}/evaluations", response_model=list[JobEvaluationOutput])

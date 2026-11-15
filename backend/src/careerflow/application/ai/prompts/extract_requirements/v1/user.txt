@@ -1,0 +1,8 @@
+Job title: $title
+Company: $company
+
+Job description:
+$description
+
+Respond with JSON matching this JSON Schema:
+$schema

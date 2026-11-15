@@ -245,6 +245,11 @@ class JobRequirementModel(Base):
     required_level: Mapped[str | None] = mapped_column(String(50))  # BEGINNER, INTERMEDIATE, EXPERT, etc.
     category: Mapped[str | None] = mapped_column(String(100))  # Matches categories from spec
     confidence: Mapped[float | None] = mapped_column(Float)  # 0.0 to 1.0
+    # Provenance: NULL extractor = entered manually; otherwise "ai" or "keyword".
+    extractor: Mapped[str | None] = mapped_column(String(20))
+    provider: Mapped[str | None] = mapped_column(String(100))
+    model_name: Mapped[str | None] = mapped_column(String(100))
+    prompt_version: Mapped[str | None] = mapped_column(String(50))
 
     # Relationships
     job: Mapped[JobModel] = relationship(back_populates="requirements")
