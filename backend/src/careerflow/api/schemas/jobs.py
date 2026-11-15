@@ -95,6 +95,7 @@ class JobOutput(BaseModel):
     source_updated_at: datetime | None = None
     source_status: str | None = None
     fingerprint: str | None = None
+    merged_into_id: str | None = None  # set when this posting is hidden as a merged duplicate
     status: str
     raw_metadata_json: dict[str, Any] = Field(default_factory=dict)
 

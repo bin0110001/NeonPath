@@ -147,7 +147,7 @@ def test_rate_limiter_spaces_calls_by_declared_limit() -> None:
 def test_run_history_and_health_transitions(session: Session) -> None:
     source = JobSourceModel(name="demo", adapter="fixture", config_json={"items": [ITEM]})
     broken = JobSourceModel(name="broken", adapter="fixture", config_json={})
-    mixed = JobSourceModel(name="mixed", adapter="fixture", config_json={"items": [{"title": "x"}, {**ITEM, "external_id": "c-9"}]})
+    mixed = JobSourceModel(name="mixed", adapter="fixture", config_json={"items": [{"title": "x"}, {**ITEM, "external_id": "c-9", "title": "Different Role"}]})
     session.add_all([source, broken, mixed])
     session.commit()
     svc = service(session)
@@ -250,9 +250,10 @@ def test_manual_import_goes_through_the_framework(client: TestClient, session: S
     body = {"title": "Pasted", "company": "Acme", "description_text": "Text", "source": {"adapter": "manual", "source_url": "https://e.com/1"}}
     first = client.post("/api/v1/jobs/import", json=body)
     second = client.post("/api/v1/jobs/import", json=body)
-    assert first.status_code == second.status_code == 201
-    assert first.json()["id"] != second.json()["id"]  # two pastes are two postings
-    record = session.scalars(select(JobSourceRecordModel)).first()
-    assert record is not None and record.adapter == "manual" and record.source_url == "https://e.com/1"
+    assert (first.status_code, second.status_code) == (201, 200)
+    assert first.json()["id"] == second.json()["id"]  # same posting pasted twice -> one job
+    records = list(session.scalars(select(JobSourceRecordModel)))
+    assert len(records) == 2 and {r.job_id for r in records} == {first.json()["id"]}
+    assert records[0].adapter == "manual" and records[0].source_url == "https://e.com/1"
     bad = client.post("/api/v1/jobs/import", json={**body, "description_text": ""})
     assert bad.status_code == 422

@@ -90,6 +90,7 @@ class JobQueryService:
                 and_(ProfileJobModel.job_id == JobModel.id, ProfileJobModel.profile_id == profile_id),
             )
             .outerjoin(JobEvaluationModel, JobEvaluationModel.id == latest_eval_id)
+            .where(JobModel.merged_into_id.is_(None))  # merged duplicates are hidden
         )
         if f.status:
             statement = statement.where(status == f.status)

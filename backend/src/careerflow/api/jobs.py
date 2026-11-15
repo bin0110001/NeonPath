@@ -161,6 +161,7 @@ def create_job(
 @router.post("/import", response_model=JobOutput, status_code=status.HTTP_201_CREATED)
 def import_job(
     payload: JobImport,
+    response: Response,
     evaluation_service: EvaluationService = Depends(get_evaluation_service),
 ) -> JobOutput:
     """Manual/fixture import through the source-adapter framework (``ManualJobAdapter``).
@@ -183,9 +184,14 @@ def import_job(
         result = ingestion.ingest(adapter)
     except SourceError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
-    if result.failed or not result.created:
+    if result.failed:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="; ".join(result.errors) or "import failed")
-    return JobOutput.model_validate(result.created[0])
+    if result.created:
+        return JobOutput.model_validate(result.created[0])
+    # The same posting (company, title, location) already exists: the pasted text was
+    # recorded as another source of that job instead of creating a duplicate.
+    response.status_code = status.HTTP_200_OK
+    return JobOutput.model_validate(result.attached_jobs[0])
 
 
 @router.get("/{job_id}", response_model=JobOutput)

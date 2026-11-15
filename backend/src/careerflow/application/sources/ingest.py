@@ -18,6 +18,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from careerflow.application.jobs.dedup import DedupService
 from careerflow.application.jobs.service import JobService
 from careerflow.domain.jobs.fingerprint import job_fingerprint
 from careerflow.domain.sources.ports import (
@@ -43,6 +44,7 @@ from careerflow.infrastructure.logging import get_redactor, log_context
 
 logger = logging.getLogger(__name__)
 
+CREATED, UPDATED, ATTACHED = "created", "updated", "attached"
 FAILING_AFTER = 3  # consecutive failed runs before a source is reported FAILING
 
 
@@ -57,6 +59,7 @@ class IngestResult:
     discovered: int = 0
     created: list[JobModel] = field(default_factory=list)
     updated: int = 0
+    attached_jobs: list[JobModel] = field(default_factory=list)  # exact duplicates: record added to these
     failed: int = 0
     errors: list[str] = field(default_factory=list)
 
@@ -93,6 +96,7 @@ class IngestionService:
         self._clock, self._sleep = clock, sleep
         self.on_created = on_created
         self.jobs = JobService(session)
+        self.dedup = DedupService(session)
 
     # -- core pipeline -------------------------------------------------------------------
 
@@ -106,17 +110,20 @@ class IngestionService:
             try:
                 document = self._with_retry(partial(adapter.fetch, reference), limiter)
                 normalized = adapter.normalize(document)
-                job, created = self._persist(adapter.name, normalized, document)
+                job, outcome = self._persist(adapter.name, normalized, document)
             except SourceError as error:
                 result.failed += 1
                 result.errors.append(f"{reference.external_id}: {error}")
                 logger.warning("source item failed", extra={"external_id": reference.external_id, "error": str(error)})
                 continue
-            if created:
+            if outcome == CREATED:
                 result.created.append(job)
+            elif outcome == ATTACHED:
+                result.attached_jobs.append(job)
             else:
                 result.updated += 1
         for job in result.created:
+            self.dedup.scan(job)  # probable duplicates go to the review queue
             if self.on_created:
                 self.on_created(job)
         return result
@@ -137,7 +144,7 @@ class IngestionService:
 
     def _persist(
         self, adapter_name: str, job: NormalizedJob, document: SourceJobDocument
-    ) -> tuple[JobModel, bool]:
+    ) -> tuple[JobModel, str]:
         now = datetime.now(UTC)
         existing = self.session.scalars(
             select(JobSourceRecordModel).where(
@@ -150,7 +157,20 @@ class IngestionService:
             existing.source_url = job.source_url or existing.source_url
             existing.last_seen_at = now
             self.session.commit()
-            return existing.job, False
+            return existing.job, UPDATED
+        fingerprint = job_fingerprint(job.company, job.title, job.location_text)
+        twin = self.dedup.find_exact(job.company, fingerprint)
+        if twin is not None:  # the same posting from another source: keep one job, two records
+            self.jobs.add_source_record(
+                twin.id,
+                {
+                    "adapter": adapter_name,
+                    "external_id": job.external_id,
+                    "source_url": job.source_url,
+                    "raw_payload": document.raw_payload,
+                },
+            )
+            return twin, ATTACHED
         values: dict[str, Any] = {
             name: getattr(job, name)
             for name in (
@@ -162,7 +182,7 @@ class IngestionService:
         }  # fmt: skip
         values["status"] = "READY_FOR_REVIEW"
         values["raw_metadata_json"] = {"industry": job.industry} if job.industry else {}
-        values["fingerprint"] = job_fingerprint(job.company, job.title, job.location_text)
+        values["fingerprint"] = fingerprint
         created = self.jobs.create_job(values)
         self.jobs.add_source_record(
             created.id,
@@ -175,7 +195,7 @@ class IngestionService:
         )
         for requirement in job.requirements:
             self.jobs.add_requirement(created.id, requirement)
-        return created, True
+        return created, CREATED
 
     # -- configured sources -------------------------------------------------------------
 

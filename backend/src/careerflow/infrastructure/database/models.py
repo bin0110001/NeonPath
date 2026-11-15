@@ -205,7 +205,9 @@ class JobModel(Base):
     discovered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     source_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     source_status: Mapped[str | None] = mapped_column(String(32))  # ACTIVE, EXPIRED, FILLED, etc.
-    fingerprint: Mapped[str | None] = mapped_column(String(64))  # For deduplication
+    fingerprint: Mapped[str | None] = mapped_column(String(64), index=True)  # For deduplication
+    # Set when this posting was merged into another canonical job (hidden from the inbox).
+    merged_into_id: Mapped[str | None] = mapped_column(ForeignKey("jobs.id"), index=True)
     raw_metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     # Processing lifecycle only (DISCOVERED ... READY_FOR_REVIEW). The review/application
     # workflow is per profile: see ProfileJobModel.
@@ -370,3 +372,33 @@ class SourceRunModel(Base):
     failed: Mapped[int] = mapped_column(Integer, default=0)
     error_code: Mapped[str | None] = mapped_column(String(100))
     error_message: Mapped[str | None] = mapped_column(Text)
+
+
+class JobDuplicateModel(Base):
+    """A suspected duplicate pair awaiting (or past) human review."""
+
+    __tablename__ = "job_duplicates"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)  # the newer posting
+    canonical_job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)  # the older one
+    classification: Mapped[str] = mapped_column(String(20))
+    score: Mapped[float] = mapped_column(Float)
+    reasons: Mapped[list[str]] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(20), default="PENDING")  # PENDING | MERGED | DISMISSED
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class JobMergeModel(Base):
+    """A reversible merge: remembers exactly which source records moved."""
+
+    __tablename__ = "job_merges"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    canonical_job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    merged_job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    source_record_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    merged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    unmerged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    actor: Mapped[str | None] = mapped_column(String(100))

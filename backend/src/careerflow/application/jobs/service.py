@@ -26,7 +26,11 @@ class JobService:
         return job
 
     def list_jobs(self) -> list[JobModel]:
-        return list(self.session.scalars(select(JobModel).order_by(JobModel.discovered_at.desc())))
+        return list(
+            self.session.scalars(
+                select(JobModel).where(JobModel.merged_into_id.is_(None)).order_by(JobModel.discovered_at.desc())
+            )
+        )
 
     def create_job(self, values: dict[str, object]) -> JobModel:
         job = JobModel(**values)
