@@ -8,7 +8,6 @@ from careerflow.infrastructure.database.models import (
     JobModel,
     JobRequirementModel,
     JobSourceRecordModel,
-    JobStatusHistoryModel,
 )
 
 T = TypeVar("T")
@@ -92,49 +91,14 @@ class JobService:
         ).order_by(JobEvaluationModel.created_at.desc())
         return self.session.scalars(statement).first()
 
-    def list_evaluations(self, job_id: str) -> list[JobEvaluationModel]:
+    def list_evaluations(
+        self, job_id: str, profile_id: str | None = None
+    ) -> list[JobEvaluationModel]:
         self.get_job(job_id)  # Validate job exists
         statement = select(JobEvaluationModel).where(JobEvaluationModel.job_id == job_id)
+        if profile_id is not None:
+            statement = statement.where(JobEvaluationModel.profile_id == profile_id)
         return list(self.session.scalars(statement.order_by(JobEvaluationModel.created_at.desc())))
-
-    def update_job_status(self, job_id: str, new_status: str, actor: str | None = None, reason: str | None = None) -> JobModel:
-        """Update job status and track the change in history."""
-        job = self.get_job(job_id)
-        old_status = job.status
-        
-        # Only create history entry if status actually changed
-        if old_status != new_status:
-            # Create status history entry
-            history_entry = JobStatusHistoryModel(
-                job_id=job_id,
-                old_status=old_status,
-                new_status=new_status,
-                actor=actor,
-                reason=reason
-            )
-            self.session.add(history_entry)
-        
-        # Update job status
-        job.status = new_status
-        self.session.commit()
-        self.session.refresh(job)
-        return job
-
-    def shortlist_job(self, job_id: str, actor: str | None = None, reason: str | None = None) -> JobModel:
-        """Shortlist a job."""
-        return self.update_job_status(job_id, "SHORTLISTED", actor, reason or "Job shortlisted by user")
-
-    def reject_job(self, job_id: str, actor: str | None = None, reason: str | None = None) -> JobModel:
-        """Reject a job."""
-        return self.update_job_status(job_id, "REJECTED", actor, reason or "Job rejected by user")
-
-    def save_job(self, job_id: str, actor: str | None = None, reason: str | None = None) -> JobModel:
-        """Save a job."""
-        return self.update_job_status(job_id, "SAVED", actor, reason or "Job saved by user")
-
-    def archive_job(self, job_id: str, actor: str | None = None, reason: str | None = None) -> JobModel:
-        """Archive a job."""
-        return self.update_job_status(job_id, "ARCHIVED", actor, reason or "Job archived by user")
 
     def add_profile_item(
         self, model: type[T], job_id: str, values: dict[str, object]

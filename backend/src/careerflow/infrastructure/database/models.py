@@ -207,8 +207,9 @@ class JobModel(Base):
     source_status: Mapped[str | None] = mapped_column(String(32))  # ACTIVE, EXPIRED, FILLED, etc.
     fingerprint: Mapped[str | None] = mapped_column(String(64))  # For deduplication
     raw_metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    # Workflow status
-    status: Mapped[str] = mapped_column(String(32), default="DISCOVERED")  # DISCOVERED, INGESTED, NORMALIZED, DEDUPLICATED, ENRICHED, EVALUATED, READY_FOR_REVIEW, SHORTLISTED, REJECTED, SAVED, ARCHIVED
+    # Processing lifecycle only (DISCOVERED ... READY_FOR_REVIEW). The review/application
+    # workflow is per profile: see ProfileJobModel.
+    status: Mapped[str] = mapped_column(String(32), default="DISCOVERED")
 
     # Relationships
     source_records: Mapped[list[JobSourceRecordModel]] = relationship(back_populates="job", cascade="all, delete-orphan")
@@ -278,6 +279,7 @@ class JobStatusHistoryModel(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
     old_status: Mapped[str | None] = mapped_column(String(32))
     new_status: Mapped[str] = mapped_column(String(32))
     actor: Mapped[str | None] = mapped_column(String(100))  # user, system, etc.
@@ -286,3 +288,16 @@ class JobStatusHistoryModel(Base):
 
     # Relationships
     job: Mapped[JobModel] = relationship(back_populates="status_history")
+
+
+class ProfileJobModel(Base):
+    """A profile's review/application workflow state for one job."""
+
+    __tablename__ = "profile_jobs"
+
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), primary_key=True)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), primary_key=True)
+    status: Mapped[str] = mapped_column(String(32), default="READY_FOR_REVIEW")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

@@ -26,15 +26,15 @@ class SearchPreferences:
     allowed_countries: list[str] = field(default_factory=list)
     allowed_regions: list[str] = field(default_factory=list)
     allowed_cities: list[str] = field(default_factory=list)
-    excluded_countries: list[str] = field(default_factory=list)
-    excluded_regions: list[str] = field(default_factory=list)
-    excluded_cities: list[str] = field(default_factory=list)
     relocation_allowed: bool = False
+    employment_types: list[str] = field(default_factory=list)
     minimum_base_salary: int | None = None
     minimum_total_comp: int | None = None
     currency: str | None = None
-    excluded_employment_types: list[str] = field(default_factory=list)
-    preferred_employment_types: list[str] = field(default_factory=list)
+    excluded_companies: list[str] = field(default_factory=list)
+    preferred_companies: list[str] = field(default_factory=list)
+    excluded_industries: list[str] = field(default_factory=list)
+    preferred_industries: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -43,9 +43,18 @@ class ScoringPreferences:
 
 
 @dataclass
+class SkillInfo:
+    """A skill with its aliases; used both for profile skills and the global catalog."""
+
+    name: str
+    aliases: list[str] = field(default_factory=list)
+    category: str | None = None
+
+
+@dataclass
 class Profile:
     display_name: str
-    skills: list = field(default_factory=list)
+    skills: list[SkillInfo] = field(default_factory=list)
     role_families: list[RoleFamily] = field(default_factory=list)
     role_targets: list[RoleTarget] = field(default_factory=list)
     search_preferences: SearchPreferences | None = None

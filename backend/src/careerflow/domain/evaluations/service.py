@@ -1,478 +1,465 @@
-"""
-Deterministic evaluation service for Phase 3 implementation.
-Implements rule-based evaluation logic without requiring AI.
+"""Deterministic evaluation (plan sections 12.1, 12.3, 12.4).
+
+Pure rule-based logic that needs no LLM. Every dimension is derived from its own
+signals; when there is no deterministic signal the dimension is reported as
+unknown and left out of the weighted score instead of being fabricated.
 """
 
+from __future__ import annotations
+
 import re
-from typing import Any
+from dataclasses import dataclass, field
 
 from careerflow.domain.jobs.model import Job
 from careerflow.domain.profiles.model import (
     Profile,
     RoleFamily,
     RoleTarget,
-    ScoringPreferences,
     SearchPreferences,
+    SkillInfo,
 )
+
+EVALUATOR_VERSION = "deterministic-v2.0"
+
+DEFAULT_WEIGHTS: dict[str, float] = {
+    "role_alignment": 0.20,
+    "seniority_alignment": 0.15,
+    "technical_alignment": 0.15,
+    "architecture_alignment": 0.15,
+    "leadership_alignment": 0.10,
+    "domain_alignment": 0.0,
+    "location_alignment": 0.10,
+    "compensation_alignment": 0.10,
+    "employment_alignment": 0.0,
+    "interest_alignment": 0.05,
+}
+DIMENSIONS = tuple(DEFAULT_WEIGHTS)
+# Dimensions that need semantic understanding; deterministic rules never score them.
+SEMANTIC_ONLY = ("architecture_alignment", "leadership_alignment", "domain_alignment")
+
+BLOCKER_SCORE_CAP = 0.2
+TECH_MATCHES_FOR_FULL_SCORE = 3
+
+ANNUALIZATION = {"YEAR": 1.0, "MONTH": 12.0, "WEEK": 52.0, "DAY": 260.0, "HOUR": 2080.0}
+
+SENIORITY_LEVELS: dict[str, frozenset[str]] = {
+    "entry": frozenset({"entry", "junior", "jr", "associate", "intern"}),
+    "mid": frozenset({"mid", "intermediate"}),
+    "senior": frozenset({"senior", "sr"}),
+    "staff": frozenset({"staff"}),
+    "principal": frozenset({"principal"}),
+    "lead": frozenset({"lead"}),
+    "manager": frozenset({"manager", "management"}),
+    "director": frozenset({"director", "vp", "head"}),
+    "executive": frozenset({"cto", "ceo", "cfo", "president", "chief"}),
+}
+
+_STOP_WORDS = frozenset({"and", "the", "for", "with", "of"})
+
+
+@dataclass
+class Outcome:
+    """Result of one rule: a score (None = not scored) plus its findings."""
+
+    score: float | None = None
+    strengths: list[str] = field(default_factory=list)
+    gaps: list[str] = field(default_factory=list)
+    blockers: list[str] = field(default_factory=list)
+    unknowns: list[str] = field(default_factory=list)
+    transferable: list[str] = field(default_factory=list)
+
+
+@dataclass
+class EvaluationResult:
+    overall_score: float
+    confidence: float
+    dimension_scores: dict[str, float]
+    strengths: list[str]
+    transferable_matches: list[str]
+    gaps: list[str]
+    blockers: list[str]
+    unknowns: list[str]
+    explanation: str
+    evaluator_version: str = EVALUATOR_VERSION
+    model_provider: str | None = None
+    model_name: str | None = None
+
+
+def normalize_text(value: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9+#.]+", " ", value.lower()).split())
+
+
+def tokens(value: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", value.lower())
+
+
+def contains_term(text: str, term: str) -> bool:
+    """Whole-word containment; safe for terms like 'c++', '.net' and 'c#'."""
+    term = term.strip().lower()
+    if len(term) < 2:
+        return False
+    return re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", text.lower()) is not None
+
+
+def name_matches(company: str, candidate: str) -> bool:
+    a, b = normalize_text(company), normalize_text(candidate)
+    return bool(b) and (a == b or a.startswith(b + " "))
+
+
+def annualize(amount: float, period: str | None) -> float | None:
+    if period is None:
+        return None
+    factor = ANNUALIZATION.get(period.upper())
+    return None if factor is None else amount * factor
 
 
 class DeterministicEvaluator:
     """Evaluates job-profile fit using deterministic rules."""
-    
-    def __init__(self):
-        # Default weights - can be overridden by profile-specific weights
-        self.default_weights = {
-            "role_alignment": 0.20,
-            "seniority_alignment": 0.15,
-            "technical_alignment": 0.15,
-            "architecture_alignment": 0.15,
-            "leadership_alignment": 0.10,
-            "location_alignment": 0.10,
-            "compensation_alignment": 0.10,
-            "interest_alignment": 0.05,
-        }
-        
-        # Remote work preferences mapping
-        self.remote_preference_scores = {
-            "REQUIRED": {"REMOTE": 1.0, "HYBRID": 0.0, "ONSITE": 0.0},
-            "PREFERRED": {"REMOTE": 1.0, "HYBRID": 0.5, "ONSITE": 0.0},
-            "NEUTRAL": {"REMOTE": 0.5, "HYBRID": 0.5, "ONSITE": 0.5},
-            "AVOID": {"REMOTE": 0.0, "HYBRID": 0.5, "ONSITE": 1.0},
-            "BLOCK": {"REMOTE": 0.0, "HYBRID": 0.0, "ONSITE": 0.0},  # Blocker if not matched
-        }
-        
-        # Employment type preferences mapping
-        self.employment_type_preference_scores = {
-            "REQUIRED": lambda pref, actual: 1.0 if pref == actual else 0.0,
-            "PREFERRED": lambda pref, actual: 1.0 if pref == actual else 0.5,
-            "NEUTRAL": lambda pref, actual: 0.5,
-            "AVOID": lambda pref, actual: 0.0 if pref == actual else 0.5,
-            "BLOCK": lambda pref, actual: 0.0 if pref == actual else 0.5,  # Blocker if matched
-        }
 
-    def evaluate_job_against_profile(
-        self, 
-        job: Job, 
+    def evaluate(
+        self,
+        job: Job,
         profile: Profile,
-        role_families: list[RoleFamily] = None,
-        role_targets: list[RoleTarget] = None,
-        search_prefs: SearchPreferences = None,
-        scoring_prefs: ScoringPreferences = None
-    ) -> dict[str, Any]:
-        """
-        Evaluate a job against a profile using deterministic rules.
-        
-        Returns:
-            Dictionary with evaluation results including dimension scores,
-            strengths, gaps, blockers, and explanation.
-        """
-        # Use provided data or fetch from profile relationships
-        if role_families is None:
-            role_families = getattr(profile, 'role_families', [])
-        if role_targets is None:
-            role_targets = getattr(profile, 'role_targets', [])
-        if search_prefs is None:
-            search_prefs = getattr(profile, 'search_preferences', None)
-        if scoring_prefs is None:
-            scoring_prefs = getattr(profile, 'scoring_preferences', None)
-        
-        # Get profile-specific weights or use defaults
-        weights = scoring_prefs.weights if scoring_prefs and scoring_prefs.weights else self.default_weights
-        
-        # Initialize results
-        dimension_scores = {}
-        strengths = []
-        gaps = []
-        blockers = []
-        
-        # 1. Role Alignment (title matching + role family matching)
-        role_alignment_score = self._calculate_role_alignment(job, role_families, role_targets)
-        dimension_scores["role_alignment"] = role_alignment_score
-        
-        if role_alignment_score >= 0.8:
-            strengths.append(f"Strong role alignment: '{job.title}' matches target role families")
-        elif role_alignment_score >= 0.5:
-            strengths.append(f"Moderate role alignment: '{job.title}' shows some relevance to target roles")
-        else:
-            gaps.append(f"Weak role alignment: '{job.title}' doesn't closely match target role families")
-            
-        # 2. Seniority Alignment (inferred from title)
-        seniority_alignment_score = self._calculate_seniority_alignment(job, role_targets)
-        dimension_scores["seniority_alignment"] = seniority_alignment_score
-        
-        # 3. Location Rules
-        location_alignment_score, location_blocker = self._calculate_location_alignment(job, search_prefs)
-        dimension_scores["location_alignment"] = location_alignment_score
-        if location_blocker:
-            blockers.append(location_blocker)
-        elif location_alignment_score >= 0.8:
-            strengths.append(f"Location match: {job.location_text}")
-        elif location_alignment_score >= 0.5:
-            strengths.append(f"Location acceptable: {job.location_text}")
-        else:
-            gaps.append(f"Location mismatch: {job.location_text}")
-            
-        # 4. Remote Rules
-        remote_alignment_score, remote_blocker = self._calculate_remote_alignment(job, search_prefs)
-        dimension_scores["remote_alignment"] = remote_alignment_score  # Using location_alignment slot for now
-        if remote_blocker:
-            blockers.append(remote_blocker)
-        elif remote_alignment_score >= 0.8:
-            strengths.append(f"Remote work preference met: {job.remote_type}")
-        elif remote_alignment_score >= 0.5:
-            strengths.append(f"Remote work preference partially met: {job.remote_type}")
-        else:
-            gaps.append(f"Remote work preference not met: {job.remote_type}")
-            
-        # 5. Compensation Rules
-        compensation_alignment_score, compensation_blocker = self._calculate_compensation_alignment(job, search_prefs)
-        dimension_scores["compensation_alignment"] = compensation_alignment_score
-        if compensation_blocker:
-            blockers.append(compensation_blocker)
-        elif compensation_alignment_score >= 0.8:
-            strengths.append(f"Compensation meets requirements: {job.salary_currency} {job.salary_min}-{job.salary_max} {job.salary_period}")
-        elif compensation_alignment_score >= 0.5:
-            strengths.append(f"Compensation acceptable: {job.salary_currency} {job.salary_min}-{job.salary_max} {job.salary_period}")
-        else:
-            gaps.append(f"Compensation below requirements: {job.salary_currency} {job.salary_min}-{job.salary_max} {job.salary_period}")
-            
-        # 6. Employment Type Rules
-        employment_alignment_score, employment_blocker = self._calculate_employment_type_alignment(job, search_prefs)
-        dimension_scores["employment_alignment"] = employment_alignment_score
-        if employment_blocker:
-            blockers.append(employment_blocker)
-        elif employment_alignment_score >= 0.8:
-            strengths.append(f"Employment type match: {job.employment_type}")
-        elif employment_alignment_score >= 0.5:
-            strengths.append(f"Employment type acceptable: {job.employment_type}")
-        else:
-            gaps.append(f"Employment type mismatch: {job.employment_type}")
-            
-        # 7. Technical/Skill Matching (keyword-based)
-        technical_alignment_score = self._calculate_technical_alignment(job, profile)
-        dimension_scores["technical_alignment"] = technical_alignment_score
-        
-        # 8. Other dimensions (simplified for MVP)
-        dimension_scores["architecture_alignment"] = technical_alignment_score * 0.9  # Simplified
-        dimension_scores["leadership_alignment"] = technical_alignment_score * 0.8   # Simplified
-        dimension_scores["domain_alignment"] = role_alignment_score * 0.9              # Simplified
-        dimension_scores["interest_alignment"] = role_alignment_score * 0.85           # Simplified
-        
-        # Calculate weighted overall score
-        overall_score = sum(
-            dimension_scores.get(dim, 0.0) * weight 
-            for dim, weight in weights.items()
-        )
-        
-        # Determine if there are any blockers
-        has_blockers = len(blockers) > 0
-        
-        # Generate explanation
-        explanation = self._generate_explanation(
-            job, profile, dimension_scores, strengths, gaps, blockers, has_blockers
-        )
-        
-        return {
-            "overall_score": max(0.0, min(1.0, overall_score)),  # Clamp to 0-1
-            "confidence": 0.85,  # Fixed confidence for deterministic evaluation
-            "dimension_scores_json": dimension_scores,
-            "strengths": strengths,
-            "transferable_matches": [],  # Will be populated by semantic evaluation
-            "gaps": gaps,
-            "blockers": blockers,
-            "unknowns": [],  # Will be populated by semantic evaluation
-            "explanation": explanation,
-            "evaluator_version": "deterministic-v1.0",
-            "model_provider": None,  # Deterministic, no external model
-            "model_name": None,
+        skill_catalog: list[SkillInfo] | None = None,
+    ) -> EvaluationResult:
+        prefs = profile.search_preferences
+        outcomes: dict[str, Outcome] = {
+            "role_alignment": self._role(job, profile.role_families, profile.role_targets),
+            "seniority_alignment": self._seniority(job, profile.role_targets),
+            "technical_alignment": self._technical(job, profile, skill_catalog or []),
+            "location_alignment": self._location_and_remote(job, prefs),
+            "compensation_alignment": self._compensation(job, prefs),
+            "employment_alignment": self._employment(job, prefs),
+            "interest_alignment": self._interest(job, prefs),
         }
-    
-    def _calculate_role_alignment(self, job: Job, role_families: list[RoleFamily], role_targets: list[RoleTarget]) -> float:
-        """Calculate role alignment based on title matching and role families."""
-        if not role_families and not role_targets:
-            return 0.5  # Neutral if no preferences set
-            
-        title_lower = job.title.lower()
-        max_score = 0.0
-        
-        # Check role families
-        for rf in role_families:
-            if rf.enabled and rf.name.lower() in title_lower:
-                max_score = max(max_score, 0.9)
-            # Check for partial matches
-            rf_words = rf.name.lower().split()
-            title_words = title_lower.split()
-            matches = sum(1 for word in rf_words if any(word in title_word for title_word in title_words))
-            if matches > 0:
-                score = min(0.7, matches * 0.2)
-                max_score = max(max_score, score)
-        
-        # Check role targets
-        for rt in role_targets:
-            # Check title patterns
-            if rt.title_pattern:
-                pattern = rt.title_pattern.lower()
-                if "*" in pattern:
-                    # Simple wildcard matching
-                    regex_pattern = pattern.replace("*", ".*")
-                    if re.search(regex_pattern, title_lower):
-                        max_score = max(max_score, 0.95)
-                elif pattern in title_lower:
-                    max_score = max(max_score, 0.9)
-            
-            # Check include/exclude keywords
-            include_score = 0.0
-            if rt.include_keywords:
-                include_matches = sum(1 for keyword in rt.include_keywords if keyword.lower() in title_lower)
-                include_score = min(1.0, include_matches * 0.3)
-            
-            exclude_penalty = 0.0
-            if rt.exclude_keywords:
-                exclude_matches = sum(1 for keyword in rt.exclude_keywords if keyword.lower() in title_lower)
-                exclude_penalty = min(0.8, exclude_matches * 0.4)  # Heavy penalty for exclusions
-            
-            keyword_score = max(0.0, include_score - exclude_penalty)
-            max_score = max(max_score, keyword_score)
-            
-            # Check seniority levels
-            if rt.target_seniority:
-                seniority_score = self._calculate_seniority_from_title(title_lower, rt.target_seniority)
-                max_score = max(max_score, seniority_score)
-        
-        return min(1.0, max_score)
-    
-    def _calculate_seniority_from_title(self, title: str, target_seniority: list[str]) -> float:
-        """Calculate seniority match from job title."""
-        seniority_indicators = {
-            "entry": ["entry", "junior", "jr", "associate", "assistant"],
-            "mid": ["mid", "intermediate", "regular"],
-            "senior": ["senior", "sr", "lead", "principal", "staff"],
-            "lead": ["lead", "principal", "staff", "manager", "head"],
-            "manager": ["manager", "management", "director", "head"],
-            "director": ["director", "vp", "vice president", "head"],
-            "executive": ["executive", "ceo", "cfo", "cto", "president"]
-        }
-        
-        title_lower = title.lower()
-        matched_levels = []
-        
-        for level, indicators in seniority_indicators.items():
-            if any(indicator in title_lower for indicator in indicators):
-                matched_levels.append(level)
-        
-        if not matched_levels:
-            return 0.3  # Default if no seniority detected
-        
-        # Check if any matched level is in target seniority
-        for matched_level in matched_levels:
-            if matched_level in target_seniority:
-                return 0.9
-        
-        # Partial match - some overlap
-        overlap = len(set(matched_levels) & set(target_seniority))
-        if overlap > 0:
-            return 0.6
-        
-        return 0.2  # Low match if no overlap
-    
-    def _calculate_seniority_alignment(self, job: Job, role_targets: list[RoleTarget]) -> float:
-        """Calculate seniority alignment based on role targets."""
-        if not role_targets:
-            return 0.5  # Neutral
-            
-        title_lower = job.title.lower()
-        best_score = 0.0
-        
-        for rt in role_targets:
-            if rt.target_seniority:
-                score = self._calculate_seniority_from_title(title_lower, rt.target_seniority)
-                best_score = max(best_score, score)
-                
-        return best_score
-    
-    def _calculate_location_alignment(self, job: Job, search_prefs: SearchPreferences | None) -> tuple[float, str | None]:
-        """Calculate location alignment and check for blockers."""
-        if not search_prefs:
-            return 0.5, None  # Neutral if no preferences
-        
-        job_location = (job.location_text or "").lower()
-        
-        # Check excluded locations
-        if search_prefs.excluded_countries or search_prefs.excluded_regions or search_prefs.excluded_cities:
-            # Simple check - in reality would need proper geocoding
-            excluded_terms = []
-            excluded_terms.extend([c.lower() for c in search_prefs.excluded_countries])
-            excluded_terms.extend([r.lower() for r in search_prefs.excluded_regions])
-            excluded_terms.extend([c.lower() for c in search_prefs.excluded_cities])
-            
-            for term in excluded_terms:
-                if term in job_location:
-                    return 0.0, f"Location blocked: {job.location_text} matches excluded location '{term}'"
-        
-        # Check preferred locations
-        location_score = 0.5  # Default neutral
-        preferred_terms = []
-        preferred_terms.extend([c.lower() for c in search_prefs.allowed_countries])
-        preferred_terms.extend([r.lower() for r in search_prefs.allowed_regions])
-        preferred_terms.extend([c.lower() for c in search_prefs.allowed_cities])
-        
-        if preferred_terms:
-            matches = sum(1 for term in preferred_terms if term in job_location)
-            if matches > 0:
-                location_score = min(1.0, matches * 0.4)
-        
-        # Relocation allowance
-        if search_prefs.relocation_allowed:
-            location_score = max(location_score, 0.7)  # Boost if relocation is OK
-        
-        return location_score, None
-    
-    def _calculate_remote_alignment(self, job: Job, search_prefs: SearchPreferences | None) -> tuple[float, str | None]:
-        """Calculate remote work alignment and check for blockers."""
-        if not search_prefs:
-            return 0.5, None  # Neutral if no preferences
-        
-        job_remote = job.remote_type or "ONSITE"
-        remote_pref = search_prefs.remote_preference or "NEUTRAL"
-        
-        # Get score from preference mapping
-        score_map = self.remote_preference_scores.get(remote_pref, self.remote_preference_scores["NEUTRAL"])
-        score = score_map.get(job_remote, 0.0)
-        
-        # Check for blocker
-        blocker = None
-        if remote_pref == "BLOCK" and score == 0.0:
-            blocker = f"Remote work blocked: {job_remote} not allowed when remote=BLOCK"
-        elif remote_pref == "REQUIRED" and score == 0.0:
-            blocker = f"Remote work required but job is {job_remote}"
-        
-        return score, blocker
-    
-    def _calculate_compensation_alignment(self, job: Job, search_prefs: SearchPreferences | None) -> tuple[float, str | None]:
-        """Calculate compensation alignment and check for blockers."""
-        if not search_prefs:
-            return 0.5, None  # Neutral if no preferences
-        
-        blocker = None
-        
-        # Check minimum base salary
-        if search_prefs.minimum_base_salary and job.salary_min:
-            if job.salary_min < search_prefs.minimum_base_salary:
-                blocker = f"Salary below minimum: {job.salary_currency} {job.salary_min} < {search_prefs.minimum_base_salary} {search_prefs.currency}"
-                return 0.0, blocker
-            else:
-                # Salary meets or exceeds minimum
-                excess_ratio = (job.salary_min - search_prefs.minimum_base_salary) / search_prefs.minimum_base_salary
-                score = min(1.0, 0.5 + excess_ratio * 0.5)  # 0.5-1.0 range
-                return score, blocker
-        
-        # Check minimum total compensation
-        if search_prefs.minimum_total_comp and job.salary_max:
-            if job.salary_max < search_prefs.minimum_total_comp:
-                blocker = f"Total compensation below minimum: {job.salary_currency} {job.salary_max} < {search_prefs.minimum_total_comp} {search_prefs.currency}"
-                return 0.0, blocker
-            else:
-                # Salary meets or exceeds minimum
-                excess_ratio = (job.salary_max - search_prefs.minimum_total_comp) / search_prefs.minimum_total_comp
-                score = min(1.0, 0.5 + excess_ratio * 0.5)  # 0.5-1.0 range
-                return score, blocker
-        
-        # No specific compensation requirements
-        return 0.5, blocker
-    
-    def _calculate_employment_type_alignment(selfself, job: Job, search_prefs: SearchPreferences | None) -> tuple[float, str | None]:
-        """Calculate employment type alignment and check for blockers."""
-        if not search_prefs:
-            return 0.5, None  # Neutral if no preferences
-        
-        job_employment = job.employment_type or "FULL_TIME"
-        blocker = None
-        
-        # Check excluded employment types
-        if search_prefs.excluded_employment_types:
-            if job_employment in search_prefs.excluded_employment_types:
-                blocker = f"Employment type blocked: {job_employment} is in excluded types"
-                return 0.0, blocker
-        
-        # Check preferred employment types
-        if search_prefs.preferred_employment_types:
-            if job_employment in search_prefs.preferred_employment_types:
-                return 1.0, blocker
-            else:
-                return 0.3, blocker  # Lower score if not in preferred
-        
-        # Check required employment types (if implemented as preferred_employment_types with REQUIRED policy)
-        # For simplicity, we'll treat employment_types as preferred unless we have a separate required field
-        
-        return 0.5, blocker
-    
-    def _calculate_technical_alignment(self, job: Job, profile: Profile) -> float:
-        """Calculate technical skill alignment using keyword matching."""
-        if not hasattr(profile, 'skills') or not profile.skills:
-            return 0.3  # Low default if no skills in profile
-        
-        # Get job requirements text
-        job_text_parts = [
-            job.title.lower(),
-            job.description_text.lower() if job.description_text else "",
-            " ".join([req.normalized_text.lower() for req in getattr(job, 'requirements', [])]) if hasattr(job, 'requirements') else ""
-        ]
-        job_text = " ".join(job_text_parts)
-        
-        # Get profile skills
-        profile_skills = []
-        for skill in profile.skills:
-            profile_skills.append(skill.canonical_name.lower())
-            # Also check aliases if available
-            if hasattr(skill, 'aliases'):
-                profile_skills.extend([alias.lower() for alias in skill.aliases])
-        
-        if not profile_skills:
-            return 0.3
-        
-        # Count matches
-        matches = 0
-        for skill in profile_skills:
-            if skill in job_text:
-                matches += 1
-        
-        # Calculate score based on match ratio
-        match_ratio = matches / len(profile_skills) if profile_skills else 0
-        return min(1.0, match_ratio * 2)  # Boost score since not all skills need to match
-    
-    def _generate_explanation(
-        self, 
-        job: Job, 
-        profile: Profile, 
-        dimension_scores: dict[str, float],
-        strengths: list[str],
-        gaps: list[str],
-        blockers: list[str],
-        has_blockers: bool
-    ) -> str:
-        """Generate a human-readable explanation of the evaluation."""
-        if has_blockers:
-            explanation = f"Job '{job.title}' at {job.company} has blockers that prevent recommendation. "
-        else:
-            explanation = f"Job '{job.title}' at {job.company} evaluated for profile '{getattr(profile, 'display_name', 'Unknown')}'. "
-        
-        explanation += f"Overall fit score: {dimension_scores.get('overall_score', 0.0):.0%}. "
-        
-        if strengths:
-            explanation += f"Strengths include: {', '.join(strengths[:2])}. "
-        
-        if gaps:
-            explanation += f"Gaps identified: {', '.join(gaps[:2])}. "
-        
+        for dim in SEMANTIC_ONLY:
+            outcomes[dim] = Outcome(
+                unknowns=[f"{dim}: no deterministic signal (needs semantic evaluation)"]
+            )
+
+        strengths: list[str] = []
+        gaps: list[str] = []
+        blockers: list[str] = self._company_industry_blockers(job, prefs)
+        unknowns: list[str] = []
+        transferable: list[str] = []
+        scores: dict[str, float] = {}
+        for dim in DIMENSIONS:
+            outcome = outcomes[dim]
+            strengths += outcome.strengths
+            gaps += outcome.gaps
+            blockers += outcome.blockers
+            unknowns += outcome.unknowns
+            transferable += outcome.transferable
+            if outcome.score is not None:
+                scores[dim] = round(max(0.0, min(1.0, outcome.score)), 4)
+
+        weights = self._weights(profile)
+        overall, confidence = self._combine(scores, weights)
         if blockers:
-            explanation += f"Blockers: {', '.join(blockers)}. "
-        
-        explanation += "Evaluation based on deterministic rules (role matching, location, compensation, etc.)."
-        
-        return explanation
+            overall = min(overall, BLOCKER_SCORE_CAP)
+        return EvaluationResult(
+            overall_score=round(overall, 4),
+            confidence=confidence,
+            dimension_scores=scores,
+            strengths=strengths,
+            transferable_matches=transferable,
+            gaps=gaps,
+            blockers=blockers,
+            unknowns=unknowns,
+            explanation=self._explain(job, profile, scores, overall, confidence, blockers, gaps),
+        )
+
+    # -- scoring ---------------------------------------------------------------------------
+
+    @staticmethod
+    def _weights(profile: Profile) -> dict[str, float]:
+        custom = profile.scoring_preferences.weights if profile.scoring_preferences else {}
+        picked = {d: float(w) for d, w in custom.items() if d in DIMENSIONS and w > 0}
+        return picked or {d: w for d, w in DEFAULT_WEIGHTS.items() if w > 0}
+
+    @staticmethod
+    def _combine(scores: dict[str, float], weights: dict[str, float]) -> tuple[float, float]:
+        """Weighted mean over scored dimensions (weights renormalised); confidence is the
+        share of total configured weight that actually had a deterministic signal."""
+        total = sum(weights.values())
+        scored = {d: w for d, w in weights.items() if d in scores}
+        scored_weight = sum(scored.values())
+        if scored_weight > 0:
+            overall = sum(scores[d] * w for d, w in scored.items()) / scored_weight
+            return overall, round(scored_weight / total, 2)
+        if scores:  # signals exist only on dimensions the profile gave no weight
+            return sum(scores.values()) / len(scores), 0.0
+        return 0.0, 0.0
+
+    # -- rules -----------------------------------------------------------------------------
+
+    def _role(self, job: Job, families: list[RoleFamily], targets: list[RoleTarget]) -> Outcome:
+        enabled = [f for f in families if f.enabled]
+        if not enabled and not targets:
+            return Outcome(unknowns=["role_alignment: no role families or targets configured"])
+        title = job.title.lower()
+        title_words = set(tokens(title))
+        best = 0.0
+        reason = ""
+        for family in enabled:
+            name = family.name.lower()
+            if contains_term(title, name):
+                score = 0.9
+            else:
+                words = [w for w in tokens(name) if len(w) >= 3 and w not in _STOP_WORDS]
+                score = 0.7 * sum(w in title_words for w in words) / len(words) if words else 0.0
+            if score > best:
+                best, reason = score, f"role family '{family.name}'"
+        for target in targets:
+            score = self._target_score(title, target)
+            if score > best:
+                best, reason = score, "a configured role target"
+        out = Outcome(score=best)
+        if best >= 0.8:
+            out.strengths.append(f"Strong role alignment: '{job.title}' matches {reason}")
+        elif best >= 0.5:
+            out.strengths.append(f"Partial role alignment: '{job.title}' overlaps {reason}")
+        else:
+            out.gaps.append(f"Weak role alignment: '{job.title}' does not match target roles")
+        return out
+
+    @staticmethod
+    def _target_score(title: str, target: RoleTarget) -> float:
+        score = 0.0
+        pattern = (target.title_pattern or "").lower().strip()
+        if pattern:
+            if "*" in pattern:
+                regex = ".*".join(re.escape(part) for part in pattern.split("*"))
+                if re.search(regex, title):
+                    score = 0.95
+            elif contains_term(title, pattern):
+                score = 0.9
+        include = sum(contains_term(title, k) for k in target.include_keywords)
+        score = max(score, min(1.0, include * 0.3))
+        exclude = sum(contains_term(title, k) for k in target.exclude_keywords)
+        return max(0.0, score - min(0.8, exclude * 0.4))
+
+    @staticmethod
+    def _title_levels(title: str) -> set[str]:
+        words = set(tokens(title))
+        return {level for level, markers in SENIORITY_LEVELS.items() if words & markers}
+
+    def _seniority(self, job: Job, targets: list[RoleTarget]) -> Outcome:
+        wanted = {s.lower().replace("-level", "") for t in targets for s in t.target_seniority}
+        if not wanted:
+            return Outcome(unknowns=["seniority_alignment: no target seniority configured"])
+        levels = self._title_levels(job.title)
+        if not levels:
+            return Outcome(unknowns=[f"seniority_alignment: no level stated in '{job.title}'"])
+        if levels & wanted:
+            return Outcome(score=1.0, strengths=[f"Seniority matches target: {sorted(levels)}"])
+        return Outcome(
+            score=0.2,
+            gaps=[f"Seniority {sorted(levels)} is outside targets {sorted(wanted)}"],
+        )
+
+    def _technical(self, job: Job, profile: Profile, catalog: list[SkillInfo]) -> Outcome:
+        if not profile.skills:
+            return Outcome(unknowns=["technical_alignment: profile has no skills"])
+        text = " ".join([job.title, job.description_text or "", *job.requirement_texts])
+        if not text.strip():
+            return Outcome(unknowns=["technical_alignment: job has no description text"])
+        matched = [s for s in profile.skills if self._skill_in_text(s, text)]
+        out = Outcome(score=min(1.0, len(matched) / TECH_MATCHES_FOR_FULL_SCORE))
+        if matched:
+            out.strengths.append("Skills found in job: " + ", ".join(s.name for s in matched))
+        else:
+            out.gaps.append("None of the profile's skills appear in the job text")
+        out.transferable += self._transferable(text, profile, catalog)
+        return out
+
+    @staticmethod
+    def _skill_in_text(skill: SkillInfo, text: str) -> bool:
+        return any(contains_term(text, term) for term in [skill.name, *skill.aliases])
+
+    def _transferable(self, text: str, profile: Profile, catalog: list[SkillInfo]) -> list[str]:
+        held = {s.name.lower() for s in profile.skills}
+        held |= {a.lower() for s in profile.skills for a in s.aliases}
+        by_category: dict[str, str] = {}
+        for skill in profile.skills:
+            if skill.category:
+                by_category.setdefault(skill.category.lower(), skill.name)
+        found: list[str] = []
+        for skill in catalog:
+            if skill.name.lower() in held or not skill.category:
+                continue
+            related = by_category.get(skill.category.lower())
+            if related and self._skill_in_text(skill, text):
+                found.append(
+                    f"{skill.name} (not listed; related to your {related}, "
+                    f"same category '{skill.category}')"
+                )
+        return found
+
+    def _location_and_remote(self, job: Job, prefs: SearchPreferences | None) -> Outcome:
+        if prefs is None:
+            return Outcome()
+        loc = self._location(job, prefs)
+        rem = self._remote(job, prefs)
+        scored = [o.score for o in (loc, rem) if o.score is not None]
+        return Outcome(
+            score=sum(scored) / len(scored) if scored else None,
+            strengths=loc.strengths + rem.strengths,
+            gaps=loc.gaps + rem.gaps,
+            blockers=loc.blockers + rem.blockers,
+            unknowns=loc.unknowns + rem.unknowns,
+        )
+
+    @staticmethod
+    def _location(job: Job, prefs: SearchPreferences) -> Outcome:
+        terms = [*prefs.allowed_countries, *prefs.allowed_regions, *prefs.allowed_cities]
+        if not terms or (job.remote_type or "").upper() == "REMOTE":
+            return Outcome()
+        if not job.location_text:
+            return Outcome(unknowns=["location_alignment: job has no location"])
+        if any(contains_term(job.location_text, t) for t in terms):
+            return Outcome(score=1.0, strengths=[f"Location allowed: {job.location_text}"])
+        if prefs.relocation_allowed:
+            return Outcome(score=0.6, gaps=[f"Would require relocation to {job.location_text}"])
+        return Outcome(
+            score=0.0,
+            blockers=[f"Location '{job.location_text}' is outside allowed locations"],
+        )
+
+    @staticmethod
+    def _remote(job: Job, prefs: SearchPreferences) -> Outcome:
+        policy = (prefs.remote_preference or "NEUTRAL").upper()
+        if policy == "NEUTRAL":
+            return Outcome()
+        kind = (job.remote_type or "").upper()
+        if kind not in {"REMOTE", "HYBRID", "ONSITE"}:
+            return Outcome(unknowns=["location_alignment: job remote type unknown"])
+        table: dict[str, dict[str, float | None]] = {
+            "REQUIRED": {"REMOTE": 1.0, "HYBRID": None, "ONSITE": None},
+            "PREFERRED": {"REMOTE": 1.0, "HYBRID": 0.6, "ONSITE": 0.3},
+            "AVOID": {"REMOTE": 0.2, "HYBRID": 0.6, "ONSITE": 1.0},
+            "BLOCK": {"REMOTE": None, "HYBRID": 0.6, "ONSITE": 1.0},
+        }
+        if policy not in table:
+            return Outcome(unknowns=[f"location_alignment: unknown remote policy {policy}"])
+        score = table[policy][kind]
+        if score is None:
+            message = (
+                f"Remote work required but job is {kind}"
+                if policy == "REQUIRED"
+                else "Remote work is blocked by the profile but job is REMOTE"
+            )
+            return Outcome(score=0.0, blockers=[message])
+        out = Outcome(score=score)
+        if score >= 0.8:
+            out.strengths.append(f"Work arrangement fits ({policy.lower()} / {kind})")
+        elif score < 0.5:
+            out.gaps.append(f"Work arrangement {kind} is disfavoured ({policy.lower()})")
+        return out
+
+    @staticmethod
+    def _compensation(job: Job, prefs: SearchPreferences | None) -> Outcome:
+        if prefs is None:
+            return Outcome()
+        minimum = prefs.minimum_base_salary or prefs.minimum_total_comp
+        if not minimum:
+            return Outcome()
+        figures = [v for v in (job.salary_min, job.salary_max) if v is not None]
+        if not figures:
+            return Outcome(unknowns=["compensation_alignment: job lists no salary"])
+        if prefs.currency and job.salary_currency and prefs.currency != job.salary_currency:
+            return Outcome(
+                unknowns=[
+                    f"compensation_alignment: currency mismatch "
+                    f"({job.salary_currency} vs {prefs.currency}); not converted"
+                ]
+            )
+        low = annualize(min(figures), job.salary_period)
+        high = annualize(max(figures), job.salary_period)
+        if low is None or high is None:
+            return Outcome(unknowns=["compensation_alignment: salary period unknown"])
+        label = f"{job.salary_currency or ''} {low:,.0f}-{high:,.0f}/yr".strip()
+        if high < minimum:
+            return Outcome(
+                score=0.0,
+                blockers=[f"Salary {label} is below minimum {minimum:,.0f}/yr"],
+            )
+        if low >= minimum:
+            score = min(1.0, 0.6 + 0.4 * (low - minimum) / minimum)
+            return Outcome(score=score, strengths=[f"Salary {label} meets minimum {minimum:,.0f}"])
+        return Outcome(
+            score=0.5,
+            gaps=[f"Salary range {label} straddles minimum {minimum:,.0f}/yr"],
+        )
+
+    @staticmethod
+    def _employment(job: Job, prefs: SearchPreferences | None) -> Outcome:
+        if prefs is None or not prefs.employment_types:
+            return Outcome()
+        if not job.employment_type:
+            return Outcome(unknowns=["employment_alignment: job employment type unknown"])
+        allowed = {t.upper() for t in prefs.employment_types}
+        if job.employment_type.upper() in allowed:
+            return Outcome(score=1.0, strengths=[f"Employment type: {job.employment_type}"])
+        return Outcome(
+            score=0.0,
+            blockers=[f"Employment type {job.employment_type} is not in {sorted(allowed)}"],
+        )
+
+    @staticmethod
+    def _company_industry_blockers(job: Job, prefs: SearchPreferences | None) -> list[str]:
+        if prefs is None:
+            return []
+        found: list[str] = []
+        if any(name_matches(job.company, c) for c in prefs.excluded_companies):
+            found.append(f"Company '{job.company}' is excluded")
+        if job.industry and any(
+            normalize_text(job.industry) == normalize_text(i) for i in prefs.excluded_industries
+        ):
+            found.append(f"Industry '{job.industry}' is excluded")
+        return found
+
+    @staticmethod
+    def _interest(job: Job, prefs: SearchPreferences | None) -> Outcome:
+        if prefs is None:
+            return Outcome()
+        out = Outcome()
+        if any(name_matches(job.company, c) for c in prefs.preferred_companies):
+            out.score = 1.0
+            out.strengths.append(f"Preferred company: {job.company}")
+        if job.industry and any(
+            normalize_text(job.industry) == normalize_text(i) for i in prefs.preferred_industries
+        ):
+            out.score = 1.0
+            out.strengths.append(f"Preferred industry: {job.industry}")
+        return out
+
+    # -- explanation -----------------------------------------------------------------------
+
+    @staticmethod
+    def _explain(
+        job: Job,
+        profile: Profile,
+        scores: dict[str, float],
+        overall: float,
+        confidence: float,
+        blockers: list[str],
+        gaps: list[str],
+    ) -> str:
+        parts = [
+            f"'{job.title}' at {job.company} for profile '{profile.display_name}': "
+            f"{overall:.0%} fit from {len(scores)} scored dimension(s), "
+            f"confidence {confidence:.0%}."
+        ]
+        if blockers:
+            parts.append(
+                f"Blocked ({'; '.join(blockers)}); score capped at {BLOCKER_SCORE_CAP:.0%}."
+            )
+        if gaps:
+            parts.append("Gaps: " + "; ".join(gaps[:3]) + ".")
+        parts.append("Deterministic rules only; dimensions without a signal are listed as unknown.")
+        return " ".join(parts)
 
 
-# Factory function for easy instantiation
 def create_deterministic_evaluator() -> DeterministicEvaluator:
-    """Create a deterministic evaluator instance."""
     return DeterministicEvaluator()

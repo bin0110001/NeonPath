@@ -27,7 +27,7 @@ def test_job_creation_and_retrieval() -> None:
         assert job.title == "Test Engineer"
         assert job.company == "Test Company"
         assert job.description_text == "Test job description"
-        assert job.status == "DISCOVERED"  # Default status
+        assert job.status == "DISCOVERED"  # Processing lifecycle default
         
         # Retrieve the job by ID
         retrieved_job = service.get_job(job.id)
@@ -162,70 +162,3 @@ def test_job_requirements() -> None:
         requirements = service.list_requirements(job.id)
         assert len(requirements) == 1
         assert requirements[0].id == requirement.id
-
-
-def test_job_status_transitions() -> None:
-    """Test job status transitions and history tracking."""
-    engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine)
-    
-    with Session(engine) as session:
-        service = JobService(session)
-        
-        # Create a job
-        job_data = {
-            "title": "Test Job for Status",
-            "company": "Test Company",
-            "description_text": "Test description",
-        }
-        job = service.create_job(job_data)
-        
-        # Check initial status
-        assert job.status == "DISCOVERED"
-        
-        # Shortlist the job
-        shortlisted_job = service.shortlist_job(job.id, "test_user", "Testing shortlist")
-        assert shortlisted_job.status == "SHORTLISTED"
-        
-        # Save the job
-        saved_job = service.save_job(job.id, "test_user", "Testing save")
-        assert saved_job.status == "SAVED"
-        
-        # Reject the job
-        rejected_job = service.reject_job(job.id, "test_user", "Testing reject")
-        assert rejected_job.status == "REJECTED"
-        
-        # Check that status history was created
-        # Note: We don't have a direct method to list history yet, but we can verify
-        # by checking that the status changed
-        final_job = service.get_job(job.id)
-        assert final_job.status == "REJECTED"
-        assert final_job.id == job.id
-
-
-def test_job_status_history_creation() -> None:
-    """Test that status history entries are created when status changes."""
-    engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine)
-    
-    with Session(engine) as session:
-        service = JobService(session)
-        
-        # Create a job
-        job_data = {
-            "title": "Test Job for History",
-            "company": "Test Company",
-            "description_text": "Test description",
-        }
-        job = service.create_job(job_data)
-        
-        # Verify no history entries initially (we'd need to query directly)
-        # Shortlist the job - should create history entry
-        service.shortlist_job(job.id, "test_user", "Testing shortlist")
-        
-        # Save the job - should create another history entry
-        service.save_job(job.id, "test_user", "Testing save")
-        
-        # The job should now be in SAVED status
-        updated_job = service.get_job(job.id)
-        assert updated_job.status == "SAVED"

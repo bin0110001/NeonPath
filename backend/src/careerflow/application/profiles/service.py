@@ -157,7 +157,7 @@ class ProfileService:
         return item
 
     # Role family methods
-    def list_role_families(self, profile_id: str) -> list:
+    def list_role_families(self, profile_id: str) -> list[RoleFamilyModel]:
         self.get_profile(profile_id)
         statement = select(RoleFamilyModel).where(RoleFamilyModel.profile_id == profile_id)
         return list(self.session.scalars(statement))
@@ -171,7 +171,7 @@ class ProfileService:
         return role_family
 
     # Role target methods
-    def list_role_targets(self, profile_id: str) -> list:
+    def list_role_targets(self, profile_id: str) -> list[RoleTargetModel]:
         self.get_profile(profile_id)
         statement = select(RoleTargetModel).where(RoleTargetModel.profile_id == profile_id)
         return list(self.session.scalars(statement))
@@ -185,7 +185,7 @@ class ProfileService:
         return role_target
 
     # Search preferences methods
-    def get_search_preferences(self, profile_id: str):
+    def get_search_preferences(self, profile_id: str) -> SearchPreferenceModel | None:
         self.get_profile(profile_id)
         statement = select(SearchPreferenceModel).where(SearchPreferenceModel.profile_id == profile_id)
         return self.session.scalars(statement).first()
@@ -204,7 +204,7 @@ class ProfileService:
         return existing
 
     # Scoring preferences methods
-    def get_scoring_preferences(self, profile_id: str):
+    def get_scoring_preferences(self, profile_id: str) -> ScoringPreferenceModel | None:
         self.get_profile(profile_id)
         statement = select(ScoringPreferenceModel).where(ScoringPreferenceModel.profile_id == profile_id)
         return self.session.scalars(statement).first()

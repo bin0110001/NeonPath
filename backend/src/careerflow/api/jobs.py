@@ -4,12 +4,26 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from careerflow.api.schemas.jobs import (
+    EvaluateRequest,
+    JobCreate,
+    JobEvaluationOutput,
+    JobImport,
+    JobOutput,
+    JobRequirementCreate,
+    JobRequirementOutput,
+    JobSourceRecordCreate,
+    JobSourceRecordOutput,
+    JobUpdate,
+    StatusHistoryOutput,
+    WorkflowActionRequest,
+    WorkflowStatusOutput,
+)
 from careerflow.application.evaluations.service import EvaluationService
 from careerflow.application.jobs.service import JobNotFoundError, JobService
-from careerflow.application.profiles.service import ProfileService
-from careerflow.infrastructure.database.models import (
-    JobModel,
-)
+from careerflow.application.jobs.workflow import JobWorkflowService
+from careerflow.application.profiles.service import ProfileNotFoundError, ProfileService
+from careerflow.domain.jobs.workflow import InvalidTransitionError, WorkflowStatus
 from careerflow.infrastructure.database.session import create_database_engine
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -35,136 +49,72 @@ def get_evaluation_service(
     return EvaluationService(job_service, profile_service)
 
 
-def require_job_service(service: JobService, job_id: str) -> JobModel:
+def get_workflow_service(session: Session = Depends(get_session)) -> JobWorkflowService:
+    return JobWorkflowService(session)
+
+
+def not_found(error: Exception) -> HTTPException:
+    kind = "profile" if isinstance(error, ProfileNotFoundError) else "job"
+    return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{kind} not found")
+
+
+@router.get("", response_model=list[JobOutput])
+def list_jobs(job_service: JobService = Depends(get_job_service)) -> list[JobOutput]:
+    return [JobOutput.model_validate(job) for job in job_service.list_jobs()]
+
+
+@router.post("", response_model=JobOutput, status_code=status.HTTP_201_CREATED)
+def create_job(
+    payload: JobCreate, job_service: JobService = Depends(get_job_service)
+) -> JobOutput:
     try:
-        return service.get_job(job_id)
-    except JobNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found") from error
-
-
-@router.get("", response_model=list[dict])
-def list_jobs(job_service: JobService = Depends(get_job_service)) -> list[dict]:
-    jobs = job_service.list_jobs()
-    return [
-        {
-            "id": job.id,
-            "canonical_url": job.canonical_url,
-            "title": job.title,
-            "company": job.company,
-            "company_domain": job.company_domain,
-            "description_text": job.description_text,
-            "description_html": job.description_html,
-            "location_text": job.location_text,
-            "remote_type": job.remote_type,
-            "employment_type": job.employment_type,
-            "salary_min": job.salary_min,
-            "salary_max": job.salary_max,
-            "salary_currency": job.salary_currency,
-            "salary_period": job.salary_period,
-            "posted_at": job.posted_at,
-            "expires_at": job.expires_at,
-            "discovered_at": job.discovered_at,
-            "source_updated_at": job.source_updated_at,
-            "source_status": job.source_status,
-            "fingerprint": job.fingerprint,
-            "raw_metadata_json": job.raw_metadata_json,
-        }
-        for job in jobs
-    ]
-
-
-@router.post("", response_model=dict, status_code=status.HTTP_201_CREATED)
-def create_job(payload: dict, job_service: JobService = Depends(get_job_service)) -> dict:
-    try:
-        job = job_service.create_job(payload)
-        return {
-            "id": job.id,
-            "canonical_url": job.canonical_url,
-            "title": job.title,
-            "company": job.company,
-            "company_domain": job.company_domain,
-            "description_text": job.description_text,
-            "description_html": job.description_html,
-            "location_text": job.location_text,
-            "remote_type": job.remote_type,
-            "employment_type": job.employment_type,
-            "salary_min": job.salary_min,
-            "salary_max": job.salary_max,
-            "salary_currency": job.salary_currency,
-            "salary_period": job.salary_period,
-            "posted_at": job.posted_at,
-            "expires_at": job.expires_at,
-            "discovered_at": job.discovered_at,
-            "source_updated_at": job.source_updated_at,
-            "source_status": job.source_status,
-            "fingerprint": job.fingerprint,
-            "raw_metadata_json": job.raw_metadata_json,
-        }
+        job = job_service.create_job(payload.model_dump())
     except IntegrityError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="job conflict") from error
+    return JobOutput.model_validate(job)
 
 
-@router.get("/{job_id}", response_model=dict)
-def get_job(job_id: str, job_service: JobService = Depends(get_job_service)) -> dict:
-    job = require_job_service(job_service, job_id)
-    return {
-        "id": job.id,
-        "canonical_url": job.canonical_url,
-        "title": job.title,
-        "company": job.company,
-        "company_domain": job.company_domain,
-        "description_text": job.description_text,
-        "description_html": job.description_html,
-        "location_text": job.location_text,
-        "remote_type": job.remote_type,
-        "employment_type": job.employment_type,
-        "salary_min": job.salary_min,
-        "salary_max": job.salary_max,
-        "salary_currency": job.salary_currency,
-        "salary_period": job.salary_period,
-        "posted_at": job.posted_at,
-        "expires_at": job.expires_at,
-        "discovered_at": job.discovered_at,
-        "source_updated_at": job.source_updated_at,
-        "source_status": job.source_status,
-        "fingerprint": job.fingerprint,
-        "raw_metadata_json": job.raw_metadata_json,
-    }
+@router.post("/import", response_model=JobOutput, status_code=status.HTTP_201_CREATED)
+def import_job(
+    payload: JobImport, job_service: JobService = Depends(get_job_service)
+) -> JobOutput:
+    """Manual or fixture import: description text is required, URL capture is optional."""
+    job_values = payload.model_dump(exclude={"source", "requirements"})
+    job_values["status"] = "READY_FOR_REVIEW"
+    try:
+        job = job_service.create_job(job_values)
+        if payload.source is not None:
+            job_service.add_source_record(job.id, payload.source.model_dump())
+        for requirement in payload.requirements:
+            job_service.add_requirement(job.id, requirement.model_dump())
+    except IntegrityError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="job conflict") from error
+    return JobOutput.model_validate(job)
 
 
-@router.put("/{job_id}", response_model=dict)
+@router.get("/{job_id}", response_model=JobOutput)
+def get_job(job_id: str, job_service: JobService = Depends(get_job_service)) -> JobOutput:
+    try:
+        return JobOutput.model_validate(job_service.get_job(job_id))
+    except JobNotFoundError as error:
+        raise not_found(error) from error
+
+
+@router.patch("/{job_id}", response_model=JobOutput)
+@router.put("/{job_id}", response_model=JobOutput)
 def update_job(
-    job_id: str, payload: dict, job_service: JobService = Depends(get_job_service)
-) -> dict:
+    job_id: str, payload: JobUpdate, job_service: JobService = Depends(get_job_service)
+) -> JobOutput:
     try:
-        job = job_service.update_job(job_id, payload)
-        return {
-            "id": job.id,
-            "canonical_url": job.canonical_url,
-            "title": job.title,
-            "company": job.company,
-            "company_domain": job.company_domain,
-            "description_text": job.description_text,
-            "description_html": job.description_html,
-            "location_text": job.location_text,
-            "remote_type": job.remote_type,
-            "employment_type": job.employment_type,
-            "salary_min": job.salary_min,
-            "salary_max": job.salary_max,
-            "salary_currency": job.salary_currency,
-            "salary_period": job.salary_period,
-            "posted_at": job.posted_at,
-            "expires_at": job.expires_at,
-            "discovered_at": job.discovered_at,
-            "source_updated_at": job.source_updated_at,
-            "source_status": job.source_status,
-            "fingerprint": job.fingerprint,
-            "raw_metadata_json": job.raw_metadata_json,
-        }
+        changes = payload.model_dump(exclude_unset=True)
+        required = ("title", "company", "description_text", "raw_metadata_json")
+        values = {k: v for k, v in changes.items() if v is not None or k not in required}
+        job = job_service.update_job(job_id, values)
     except JobNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found") from error
+        raise not_found(error) from error
     except IntegrityError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="job conflict") from error
+    return JobOutput.model_validate(job)
 
 
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -172,321 +122,180 @@ def delete_job(job_id: str, job_service: JobService = Depends(get_job_service)) 
     try:
         job_service.delete_job(job_id)
     except JobNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found") from error
+        raise not_found(error) from error
 
 
-# Source records endpoints
-@router.get("/{job_id}/sources", response_model=list[dict])
+@router.get("/{job_id}/sources", response_model=list[JobSourceRecordOutput])
 def list_source_records(
     job_id: str, service: JobService = Depends(get_job_service)
-) -> list[dict]:
-    require_job_service(service, job_id)  # Validate job exists
-    sources = service.list_source_records(job_id)
-    return [
-        {
-            "id": source.id,
-            "job_id": source.job_id,
-            "adapter": source.adapter,
-            "external_id": source.external_id,
-            "source_url": source.source_url,
-            "raw_payload": source.raw_payload,
-            "discovered_at": source.discovered_at,
-            "last_seen_at": source.last_seen_at,
-        }
-        for source in sources
-    ]
-
-
-@router.post("/{job_id}/sources", response_model=dict, status_code=status.HTTP_201_CREATED)
-def add_source_record(
-    job_id: str, payload: dict, service: JobService = Depends(get_job_service)
-) -> dict:
+) -> list[JobSourceRecordOutput]:
     try:
-        source = service.add_source_record(job_id, payload)
-        return {
-            "id": source.id,
-            "job_id": source.job_id,
-            "adapter": source.adapter,
-            "external_id": source.external_id,
-            "source_url": source.source_url,
-            "raw_payload": source.raw_payload,
-            "discovered_at": source.discovered_at,
-            "last_seen_at": source.last_seen_at,
-        }
+        records = service.list_source_records(job_id)
     except JobNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found") from error
+        raise not_found(error) from error
+    return [JobSourceRecordOutput.model_validate(r) for r in records]
 
 
-# Requirements endpoints
-@router.get("/{job_id}/requirements", response_model=list[dict])
+@router.post(
+    "/{job_id}/sources", response_model=JobSourceRecordOutput, status_code=status.HTTP_201_CREATED
+)
+def add_source_record(
+    job_id: str, payload: JobSourceRecordCreate, service: JobService = Depends(get_job_service)
+) -> JobSourceRecordOutput:
+    try:
+        record = service.add_source_record(job_id, payload.model_dump())
+    except JobNotFoundError as error:
+        raise not_found(error) from error
+    return JobSourceRecordOutput.model_validate(record)
+
+
+@router.get("/{job_id}/requirements", response_model=list[JobRequirementOutput])
 def list_requirements(
     job_id: str, job_service: JobService = Depends(get_job_service)
-) -> list[dict]:
-    require_job_service(job_service, job_id)  # Validate job exists
-    requirements = job_service.list_requirements(job_id)
-    return [
-        {
-            "id": req.id,
-            "job_id": req.job_id,
-            "type": req.type,
-            "normalized_text": req.normalized_text,
-            "source_text": req.source_text,
-            "required_level": req.required_level,
-            "category": req.category,
-            "confidence": req.confidence,
-        }
-        for req in requirements
-    ]
+) -> list[JobRequirementOutput]:
+    try:
+        requirements = job_service.list_requirements(job_id)
+    except JobNotFoundError as error:
+        raise not_found(error) from error
+    return [JobRequirementOutput.model_validate(r) for r in requirements]
 
 
-@router.post("/{job_id}/requirements", response_model=dict, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{job_id}/requirements",
+    response_model=JobRequirementOutput,
+    status_code=status.HTTP_201_CREATED,
+)
 def add_requirement(
-    job_id: str, payload: dict, job_service: JobService = Depends(get_job_service)
-) -> dict:
+    job_id: str, payload: JobRequirementCreate, job_service: JobService = Depends(get_job_service)
+) -> JobRequirementOutput:
     try:
-        requirement = job_service.add_requirement(job_id, payload)
-        return {
-            "id": requirement.id,
-            "job_id": requirement.job_id,
-            "type": requirement.type,
-            "normalized_text": requirement.normalized_text,
-            "source_text": requirement.source_text,
-            "required_level": requirement.required_level,
-            "category": requirement.category,
-            "confidence": requirement.confidence,
-        }
+        requirement = job_service.add_requirement(job_id, payload.model_dump())
     except JobNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found") from error
+        raise not_found(error) from error
+    return JobRequirementOutput.model_validate(requirement)
 
 
-# Evaluations endpoints
-@router.get("/{job_id}/evaluations", response_model=list[dict])
+@router.get("/{job_id}/evaluations", response_model=list[JobEvaluationOutput])
 def list_evaluations(
-    job_id: str, evaluation_service: EvaluationService = Depends(get_evaluation_service)
-) -> list[dict]:
-    require_job_service(evaluation_service.job_service, job_id)  # Validate job exists
-    evaluations = evaluation_service.job_service.list_evaluations(job_id)
-    return [
-        {
-            "id": eval.id,
-            "job_id": eval.job_id,
-            "profile_id": eval.profile_id,
-            "evaluator_version": eval.evaluator_version,
-            "model_provider": eval.model_provider,
-            "model_name": eval.model_name,
-            "overall_score": eval.overall_score,
-            "confidence": eval.confidence,
-            "dimension_scores_json": eval.dimension_scores_json,
-            "strengths": eval.strengths,
-            "transferable_matches": eval.transferable_matches,
-            "gaps": eval.gaps,
-            "blockers": eval.blockers,
-            "unknowns": eval.unknowns,
-            "explanation": eval.explanation,
-            "created_at": eval.created_at,
-        }
-        for eval in evaluations
-    ]
-
-
-@router.post("/{job_id}/evaluations", response_model=dict, status_code=status.HTTP_201_CREATED)
-def add_evaluation(
-    job_id: str, payload: dict, evaluation_service: EvaluationService = Depends(get_evaluation_service)
-) -> dict:
-    # For MVP, we'll require profile_id in the payload
-    profile_id = payload.pop("profile_id", None)
-    if not profile_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="profile_id is required")
-    
+    job_id: str,
+    profile_id: str | None = None,
+    evaluation_service: EvaluationService = Depends(get_evaluation_service),
+) -> list[JobEvaluationOutput]:
+    """Evaluation history (newest first), optionally for one profile."""
     try:
-        evaluation = evaluation_service.evaluate_job_for_profile(
-            job_id, profile_id, evaluation_service.job_service.session
-        )
-        return {
-            "id": evaluation.id,
-            "job_id": evaluation.job_id,
-            "profile_id": evaluation.profile_id,
-            "evaluator_version": evaluation.evaluator_version,
-            "model_provider": evaluation.model_provider,
-            "model_name": evaluation.model_name,
-            "overall_score": evaluation.overall_score,
-            "confidence": evaluation.confidence,
-            "dimension_scores_json": evaluation.dimension_scores_json,
-            "strengths": evaluation.strengths,
-            "transferable_matches": evaluation.transferable_matches,
-            "gaps": evaluation.gaps,
-            "blockers": evaluation.blockers,
-            "unknowns": evaluation.unknowns,
-            "explanation": evaluation.explanation,
-            "created_at": evaluation.created_at,
-        }
+        rows = evaluation_service.list_evaluations(job_id, profile_id)
     except JobNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found") from error
+        raise not_found(error) from error
+    return [JobEvaluationOutput.model_validate(row) for row in rows]
 
 
-@router.get("/{job_id}/evaluations/latest", response_model=dict | None)
+@router.post(
+    "/{job_id}/evaluations", response_model=JobEvaluationOutput, status_code=status.HTTP_201_CREATED
+)
+@router.post(
+    "/{job_id}/evaluate", response_model=JobEvaluationOutput, status_code=status.HTTP_201_CREATED
+)
+def evaluate_job(
+    job_id: str,
+    payload: EvaluateRequest,
+    evaluation_service: EvaluationService = Depends(get_evaluation_service),
+) -> JobEvaluationOutput:
+    """Run the deterministic evaluator; always appends a new evaluation row."""
+    try:
+        row = evaluation_service.evaluate_job_for_profile(job_id, payload.profile_id)
+    except (JobNotFoundError, ProfileNotFoundError) as error:
+        raise not_found(error) from error
+    return JobEvaluationOutput.model_validate(row)
+
+
+@router.get("/{job_id}/evaluations/latest", response_model=JobEvaluationOutput | None)
 def get_latest_evaluation(
-    job_id: str, profile_id: str, evaluation_service: EvaluationService = Depends(get_evaluation_service)
-) -> dict | None:
+    job_id: str,
+    profile_id: str,
+    evaluation_service: EvaluationService = Depends(get_evaluation_service),
+) -> JobEvaluationOutput | None:
     try:
-        evaluation = evaluation_service.get_job_evaluation(
-            job_id, profile_id, evaluation_service.job_service.session
-        )
-        if evaluation is None:
-            return None
-        return {
-            "id": evaluation.id,
-            "job_id": evaluation.job_id,
-            "profile_id": evaluation.profile_id,
-            "evaluator_version": evaluation.evaluator_version,
-            "model_provider": evaluation.model_provider,
-            "model_name": evaluation.model_name,
-            "overall_score": evaluation.overall_score,
-            "confidence": evaluation.confidence,
-            "dimension_scores_json": evaluation.dimension_scores_json,
-            "strengths": evaluation.strengths,
-            "transferable_matches": evaluation.transferable_matches,
-            "gaps": evaluation.gaps,
-            "blockers": evaluation.blockers,
-            "unknowns": evaluation.unknowns,
-            "explanation": evaluation.explanation,
-            "created_at": evaluation.created_at,
-        }
-    except JobNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found") from error
+        row = evaluation_service.get_job_evaluation(job_id, profile_id)
+    except (JobNotFoundError, ProfileNotFoundError) as error:
+        raise not_found(error) from error
+    return None if row is None else JobEvaluationOutput.model_validate(row)
 
 
-# Workflow action endpoints
-@router.post("/{job_id}/shortlist", response_model=dict)
+# -- profile-scoped workflow -------------------------------------------------------------
+
+
+def _apply(
+    target: WorkflowStatus,
+    job_id: str,
+    payload: WorkflowActionRequest,
+    workflow: JobWorkflowService,
+) -> WorkflowStatusOutput:
+    try:
+        new = workflow.transition(payload.profile_id, job_id, target, payload.actor, payload.reason)
+    except (JobNotFoundError, ProfileNotFoundError) as error:
+        raise not_found(error) from error
+    except InvalidTransitionError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    return WorkflowStatusOutput(job_id=job_id, profile_id=payload.profile_id, status=new.value)
+
+
+@router.post("/{job_id}/shortlist", response_model=WorkflowStatusOutput)
 def shortlist_job(
-    job_id: str, payload: dict, job_service: JobService = Depends(get_job_service)
-) -> dict:
-    """Shortlist a job."""
-    actor = payload.get("actor", "user")
-    reason = payload.get("reason", "Job shortlisted")
-    
-    try:
-        job = job_service.shortlist_job(job_id, actor, reason)
-        return {
-            "id": job.id,
-            "title": job.title,
-            "company": job.company,
-            "status": job.status,
-            "discovered_at": job.discovered_at,
-        }
-    except JobNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found") from error
+    job_id: str,
+    payload: WorkflowActionRequest,
+    workflow: JobWorkflowService = Depends(get_workflow_service),
+) -> WorkflowStatusOutput:
+    return _apply(WorkflowStatus.SHORTLISTED, job_id, payload, workflow)
 
 
-@router.post("/{job_id}/reject", response_model=dict)
+@router.post("/{job_id}/reject", response_model=WorkflowStatusOutput)
 def reject_job(
-    job_id: str, payload: dict, job_service: JobService = Depends(get_job_service)
-) -> dict:
-    """Reject a job."""
-    actor = payload.get("actor", "user")
-    reason = payload.get("reason", "Job rejected")
-    
-    try:
-        job = job_service.reject_job(job_id, actor, reason)
-        return {
-            "id": job.id,
-            "title": job.title,
-            "company": job.company,
-            "status": job.status,
-            "discovered_at": job.discovered_at,
-        }
-    except JobNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found") from error
+    job_id: str,
+    payload: WorkflowActionRequest,
+    workflow: JobWorkflowService = Depends(get_workflow_service),
+) -> WorkflowStatusOutput:
+    return _apply(WorkflowStatus.REJECTED, job_id, payload, workflow)
 
 
-@router.post("/{job_id}/save", response_model=dict)
+@router.post("/{job_id}/save", response_model=WorkflowStatusOutput)
 def save_job(
-    job_id: str, payload: dict, job_service: JobService = Depends(get_job_service)
-) -> dict:
-    """Save a job."""
-    actor = payload.get("actor", "user")
-    reason = payload.get("reason", "Job saved")
-    
-    try:
-        job = job_service.save_job(job_id, actor, reason)
-        return {
-            "id": job.id,
-            "title": job.title,
-            "company": job.company,
-            "status": job.status,
-            "discovered_at": job.discovered_at,
-        }
-    except JobNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found") from error
+    job_id: str,
+    payload: WorkflowActionRequest,
+    workflow: JobWorkflowService = Depends(get_workflow_service),
+) -> WorkflowStatusOutput:
+    return _apply(WorkflowStatus.SAVED, job_id, payload, workflow)
 
 
-# Demo/import endpoints
-@router.post("/import", response_model=dict, status_code=status.HTTP_201_CREATED)
-def import_fixture_job(
-    payload: dict, job_service: JobService = Depends(get_job_service)
-) -> dict:
-    """
-    Import a single job from fixture data.
-    This is useful for demo purposes and testing.
-    """
+@router.post("/{job_id}/archive", response_model=WorkflowStatusOutput)
+def archive_job(
+    job_id: str,
+    payload: WorkflowActionRequest,
+    workflow: JobWorkflowService = Depends(get_workflow_service),
+) -> WorkflowStatusOutput:
+    return _apply(WorkflowStatus.ARCHIVED, job_id, payload, workflow)
+
+
+@router.get("/{job_id}/workflow", response_model=WorkflowStatusOutput)
+def get_workflow_status(
+    job_id: str,
+    profile_id: str,
+    workflow: JobWorkflowService = Depends(get_workflow_service),
+) -> WorkflowStatusOutput:
     try:
-        # Extract job data from payload
-        job_data = {
-            "title": payload.get("title"),
-            "company": payload.get("company"),
-            "company_domain": payload.get("company_domain"),
-            "description_text": payload.get("description_text"),
-            "description_html": payload.get("description_html"),
-            "location_text": payload.get("location_text"),
-            "remote_type": payload.get("remote_type"),
-            "employment_type": payload.get("employment_type"),
-            "salary_min": payload.get("salary_min"),
-            "salary_max": payload.get("salary_max"),
-            "salary_currency": payload.get("salary_currency"),
-            "salary_period": payload.get("salary_period"),
-            "canonical_url": payload.get("canonical_url"),
-        }
-        
-        # Remove None values
-        job_data = {k: v for k, v in job_data.items() if v is not None}
-        
-        # Create the job
-        job = job_service.create_job(job_data)
-        
-        # Add source record if provided
-        if "source" in payload and payload["source"]:
-            source_data = payload["source"]
-            source_data["job_id"] = job.id
-            job_service.add_source_record(job.id, source_data)
-        
-        # Add requirements if provided
-        if "requirements" in payload and payload["requirements"]:
-            for req_data in payload["requirements"]:
-                req_data["job_id"] = job.id
-                job_service.add_requirement(job.id, req_data)
-        
-        return {
-            "id": job.id,
-            "canonical_url": job.canonical_url,
-            "title": job.title,
-            "company": job.company,
-            "company_domain": job.company_domain,
-            "description_text": job.description_text,
-            "description_html": job.description_html,
-            "location_text": job.location_text,
-            "remote_type": job.remote_type,
-            "employment_type": job.employment_type,
-            "salary_min": job.salary_min,
-            "salary_max": job.salary_max,
-            "salary_currency": job.salary_currency,
-            "salary_period": job.salary_period,
-            "posted_at": job.posted_at,
-            "expires_at": job.expires_at,
-            "discovered_at": job.discovered_at,
-            "source_updated_at": job.source_updated_at,
-            "source_status": job.source_status,
-            "fingerprint": job.fingerprint,
-            "raw_metadata_json": job.raw_metadata_json,
-        }
-    except Exception as error:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+        current = workflow.get_status(profile_id, job_id)
+    except (JobNotFoundError, ProfileNotFoundError) as error:
+        raise not_found(error) from error
+    return WorkflowStatusOutput(job_id=job_id, profile_id=profile_id, status=current.value)
+
+
+@router.get("/{job_id}/status-history", response_model=list[StatusHistoryOutput])
+def get_status_history(
+    job_id: str,
+    profile_id: str,
+    workflow: JobWorkflowService = Depends(get_workflow_service),
+) -> list[StatusHistoryOutput]:
+    try:
+        rows = workflow.history(profile_id, job_id)
+    except (JobNotFoundError, ProfileNotFoundError) as error:
+        raise not_found(error) from error
+    return [StatusHistoryOutput.model_validate(row) for row in rows]
