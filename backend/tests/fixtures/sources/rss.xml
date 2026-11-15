@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Contoso Labs Careers</title>
+    <link>https://careers.example.com/</link>
+    <item>
+      <title>Platform Engineer at Contoso Labs</title>
+      <link>https://careers.example.com/jobs/101</link>
+      <guid>job-101</guid>
+      <pubDate>Wed, 01 Oct 2026 09:00:00 +0000</pubDate>
+      <description>&lt;p&gt;Build internal platforms with &lt;b&gt;Python&lt;/b&gt;.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Kubernetes&lt;/li&gt;&lt;li&gt;CI/CD&lt;/li&gt;&lt;/ul&gt;</description>
+    </item>
+    <item>
+      <title>Data Scientist</title>
+      <link>https://careers.example.com/jobs/102</link>
+      <dc:creator>Contoso Analytics</dc:creator>
+      <pubDate>Thu, 02 Oct 2026 10:30:00 +0000</pubDate>
+      <content:encoded><![CDATA[<p>Forecasting and experimentation.</p>]]></content:encoded>
+    </item>
+  </channel>
+</rss>

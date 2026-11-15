@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Fabrikam Jobs</title>
+  <entry>
+    <title>Site Reliability Engineer at Fabrikam</title>
+    <id>tag:fabrikam.example.com,2026:jobs/7</id>
+    <link href="https://fabrikam.example.com/jobs/7"/>
+    <published>2026-10-05T08:00:00Z</published>
+    <author><name>Fabrikam</name></author>
+    <content type="html">&lt;p&gt;Keep services reliable.&lt;/p&gt;</content>
+  </entry>
+</feed>

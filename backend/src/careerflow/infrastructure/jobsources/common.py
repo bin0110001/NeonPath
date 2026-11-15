@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import html
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -20,6 +22,32 @@ DATE_FIELDS = ("posted_at", "expires_at")
 def stable_id(*parts: str | None) -> str:
     digest = hashlib.sha256("\x1f".join((p or "").strip().lower() for p in parts).encode()).hexdigest()
     return digest[:24]
+
+
+_TAGS = re.compile(r"<[^>]+>")
+_BLOCKS = re.compile(r"(?i)</?(p|div|br|li|ul|ol|h[1-6]|tr)[^>]*>")
+
+
+def html_to_text(value: str) -> str:
+    """Plain text from (possibly entity-escaped) HTML; keeps paragraph/list breaks."""
+    text = html.unescape(value)
+    if "<" in text:
+        text = _TAGS.sub("", _BLOCKS.sub("\n", text))
+    lines = [" ".join(line.split()) for line in html.unescape(text).splitlines()]
+    return "\n".join(line for line in lines if line)
+
+
+def dig(data: object, path: str) -> object:
+    """Follow a dotted path (``a.b.0.c``) through dicts and lists; missing -> None."""
+    current = data
+    for part in filter(None, path.split(".")):
+        if isinstance(current, dict):
+            current = current.get(part)
+        elif isinstance(current, list) and part.isdigit() and int(part) < len(current):
+            current = current[int(part)]
+        else:
+            return None
+    return current
 
 
 def parse_datetime(value: Any) -> datetime | None:

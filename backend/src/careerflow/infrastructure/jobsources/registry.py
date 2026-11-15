@@ -8,6 +8,8 @@ from collections.abc import Callable
 from typing import Any
 
 from careerflow.domain.sources.ports import JobSourceAdapter, SourceConfigError
+from careerflow.infrastructure.jobsources.feeds import GenericJsonJobAdapter, RssJobAdapter
+from careerflow.infrastructure.jobsources.greenhouse import GreenhouseJobAdapter
 from careerflow.infrastructure.jobsources.http import HttpClient, HttpxClient
 from careerflow.infrastructure.jobsources.simple import FixtureJobAdapter, ManualJobAdapter
 
@@ -16,6 +18,9 @@ AdapterFactory = Callable[[dict[str, Any], HttpClient], JobSourceAdapter]
 ADAPTERS: dict[str, AdapterFactory] = {
     "manual": lambda config, http: ManualJobAdapter(config),
     "fixture": lambda config, http: FixtureJobAdapter(config),
+    "rss": lambda config, http: RssJobAdapter(config, http),
+    "generic_json": lambda config, http: GenericJsonJobAdapter(config, http),
+    "greenhouse": lambda config, http: GreenhouseJobAdapter(config, http),
 }
 
 SECRET_KEYS = ("api_key", "apikey", "token", "secret", "password", "authorization")

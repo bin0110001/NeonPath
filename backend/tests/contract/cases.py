@@ -7,10 +7,14 @@ transport scenario (see ``NETWORK_MODES``) using ``FakeHttp``, so no test touche
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from careerflow.domain.sources.ports import JobSourceAdapter
+from careerflow.infrastructure.jobsources.feeds import GenericJsonJobAdapter, RssJobAdapter
+from careerflow.infrastructure.jobsources.greenhouse import GreenhouseJobAdapter
 from careerflow.infrastructure.jobsources.http import HttpResponse
 from careerflow.infrastructure.jobsources.simple import FixtureJobAdapter, ManualJobAdapter
 
@@ -78,7 +82,74 @@ def _fixture(mode: str, http: FakeHttp) -> JobSourceAdapter:
     return FixtureJobAdapter({"items": items})
 
 
+FIXTURES = Path(__file__).parent.parent / "fixtures" / "sources"
+
+
+def fixture_text(name: str) -> str:
+    return (FIXTURES / name).read_text(encoding="utf-8")
+
+
+def _routes(http: FakeHttp, body: str) -> None:
+    if not http.routes:  # network-failure scenarios pre-install their own routes
+        http.routes = {"": HttpResponse(200, body)}
+
+
+def _rss(fixture: str) -> Callable[[str, FakeHttp], JobSourceAdapter]:
+    def build(mode: str, http: FakeHttp) -> JobSourceAdapter:
+        body = {
+            "ok": fixture_text(fixture),
+            "empty": '<?xml version="1.0"?><rss version="2.0"><channel><title>T</title></channel></rss>',
+            "malformed": '<rss version="2.0"><channel><title>T</title><item><title>X at Y</title></item></channel></rss>',
+        }[mode]
+        _routes(http, body)
+        return RssJobAdapter({"url": "https://careers.example.com/feed", "api_key": SECRET}, http)
+
+    return build
+
+
+JSON_CONFIG = {
+    "url": "https://jobs.example.org/api/postings",
+    "items_path": "data.postings",
+    "external_id_path": "id",
+    "field_map": {
+        "title": "role",
+        "description_text": "summary",
+        "location_text": "where.city",
+        "salary_min": "pay.low",
+        "salary_max": "pay.high",
+        "salary_currency": "pay.ccy",
+        "canonical_url": "url",
+        "posted_at": "published",
+    },
+    "static": {"company": "Example Org", "salary_period": "YEAR"},
+}
+
+
+def _json(mode: str, http: FakeHttp) -> JobSourceAdapter:
+    body = {
+        "ok": fixture_text("json_feed.json"),
+        "empty": json.dumps({"data": {"postings": []}}),
+        "malformed": json.dumps({"data": {"postings": [{"id": 1, "role": "No description"}]}}),
+    }[mode]
+    _routes(http, body)
+    return GenericJsonJobAdapter({**JSON_CONFIG, "api_key": SECRET}, http)
+
+
+def _greenhouse(mode: str, http: FakeHttp) -> JobSourceAdapter:
+    body = {
+        "ok": fixture_text("greenhouse.json"),
+        "empty": json.dumps({"jobs": []}),
+        "malformed": json.dumps({"jobs": [{"id": 1, "title": "No content", "location": {"name": "X"}}]}),
+    }[mode]
+    _routes(http, body)
+    return GreenhouseJobAdapter({"board_token": "acmerobotics", "company": "Acme Robotics"}, http)
+
+
 CASES: list[AdapterCase] = [
     AdapterCase("manual", _manual, expected_name="manual"),
     AdapterCase("fixture", _fixture, expected_name="fixture"),
+    AdapterCase("rss", _rss("rss.xml"), network=True, expected_name="rss"),
+    AdapterCase("atom", _rss("atom.xml"), network=True, expected_name="rss"),
+    AdapterCase("generic_json", _json, network=True, expected_name="generic_json"),
+    AdapterCase("greenhouse", _greenhouse, network=True, expected_name="greenhouse"),
 ]
