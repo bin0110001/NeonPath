@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -190,8 +190,10 @@ POSTGRES_URL = os.environ.get("TEST_DATABASE_URL")
 def test_two_workers_never_run_the_same_task() -> None:
     assert POSTGRES_URL
     engine = create_engine(POSTGRES_URL, pool_size=10)
-    Base.metadata.drop_all(engine, tables=[TaskModel.__table__])  # type: ignore[list-item]
-    Base.metadata.create_all(engine, tables=[TaskModel.__table__])  # type: ignore[list-item]
+    Base.metadata.create_all(engine)  # full schema: task tables have foreign keys to profiles
+    with sessionmaker(engine)() as cleanup:  # empty the queue tables; the schema itself is shared
+        cleanup.execute(delete(TaskModel))
+        cleanup.commit()
     factory = sessionmaker(engine, expire_on_commit=False)
     total = 40
     with factory() as session:
@@ -224,4 +226,6 @@ def test_two_workers_never_run_the_same_task() -> None:
         assert done == total
         attempts = session.scalars(select(TaskModel.attempts)).all()
         assert set(attempts) == {1}
-    Base.metadata.drop_all(engine, tables=[TaskModel.__table__])  # type: ignore[list-item]
+    with sessionmaker(engine)() as cleanup:
+        cleanup.execute(delete(TaskModel))
+        cleanup.commit()

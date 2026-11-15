@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -148,9 +148,10 @@ POSTGRES_URL = os.environ.get("TEST_DATABASE_URL")
 def test_concurrent_schedulers_enqueue_each_occurrence_exactly_once() -> None:
     assert POSTGRES_URL
     engine = create_engine(POSTGRES_URL, pool_size=10)
-    tables = [ScheduledTaskModel.__table__, TaskModel.__table__]
-    Base.metadata.drop_all(engine, tables=tables)  # type: ignore[arg-type]
-    Base.metadata.create_all(engine, tables=tables)  # type: ignore[arg-type]
+    Base.metadata.create_all(engine)  # full schema: task tables have foreign keys to profiles
+    with sessionmaker(engine)() as cleanup:  # empty the queue tables; the schema itself is shared
+        cleanup.execute(delete(TaskModel))
+        cleanup.commit()
     factory = sessionmaker(engine, expire_on_commit=False)
     clock = Clock()
     with factory() as session:
@@ -170,7 +171,10 @@ def test_concurrent_schedulers_enqueue_each_occurrence_exactly_once() -> None:
     with factory() as session:
         keys = [t.payload_json["schedule_key"] for t in session.scalars(select(TaskModel))]
     assert sorted(keys) == sorted(f"k{i}" for i in range(20))  # exactly one task per schedule
-    Base.metadata.drop_all(engine, tables=tables)  # type: ignore[arg-type]
+    with sessionmaker(engine)() as cleanup:
+        cleanup.execute(delete(ScheduledTaskModel))
+        cleanup.execute(delete(TaskModel))
+        cleanup.commit()
 
 
 # --- searches --------------------------------------------------------------------------------

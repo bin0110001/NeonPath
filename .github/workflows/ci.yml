@@ -136,6 +136,11 @@ jobs:
         run: |
           podman --version
           podman info --format '{{.Host.Security.Rootless}}'
+      - name: Start the Podman API socket (podman compose delegates to docker-compose)
+        run: |
+          podman system service --time=0 unix:///tmp/podman.sock &
+          for i in $(seq 1 20); do [ -S /tmp/podman.sock ] && break; sleep 1; done
+          echo "DOCKER_HOST=unix:///tmp/podman.sock" >> "$GITHUB_ENV"
       - run: podman compose config
       - run: podman compose up -d --build
       - run: curl --fail --retry 30 --retry-delay 2 --retry-connrefused http://localhost:8000/health/ready
