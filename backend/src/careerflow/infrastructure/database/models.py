@@ -605,6 +605,7 @@ class FollowUpModel(Base):
 
 class InterviewModel(Base):
     __tablename__ = "interviews"
+    __table_args__ = (UniqueConstraint("profile_id", "external_event_id", name="uq_interview_external_event"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
@@ -619,6 +620,8 @@ class InterviewModel(Base):
     post_notes: Mapped[str | None] = mapped_column(Text)
     next_steps: Mapped[str | None] = mapped_column(Text)
     prep_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # saved preparation (see #37)
+    # Set when imported from a calendar: re-importing the same event never creates a second row.
+    external_event_id: Mapped[str | None] = mapped_column(String(200))
 
 
 class ArtifactModel(Base):
@@ -643,3 +646,84 @@ class ArtifactModel(Base):
     content_sha256: Mapped[str] = mapped_column(String(64))
     package_id: Mapped[str | None] = mapped_column(String(36))  # package the content was built from
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class IntegrationAccountModel(Base):
+    """A connected external account. Tokens are stored encrypted and never returned by the API."""
+
+    __tablename__ = "integration_accounts"
+    __table_args__ = (UniqueConstraint("profile_id", "kind", name="uq_integration_profile_kind"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))  # email | calendar
+    provider: Mapped[str] = mapped_column(String(30))
+    enc_access_token: Mapped[str] = mapped_column(Text)
+    enc_refresh_token: Mapped[str | None] = mapped_column(Text)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    scopes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    allow_writes: Mapped[bool] = mapped_column(Boolean, default=False)
+    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class OAuthStateModel(Base):
+    """A pending OAuth authorisation (state + PKCE verifier, encrypted). Short-lived."""
+
+    __tablename__ = "oauth_states"
+
+    state: Mapped[str] = mapped_column(String(100), primary_key=True)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"))
+    kind: Mapped[str] = mapped_column(String(20))
+    enc_verifier: Mapped[str] = mapped_column(Text)
+    allow_writes: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EmailLinkModel(Base):
+    """A recognised message: external ids and routing facts only, never the mailbox copy."""
+
+    __tablename__ = "email_links"
+    __table_args__ = (UniqueConstraint("profile_id", "message_id", name="uq_email_link_message"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    application_id: Mapped[str | None] = mapped_column(ForeignKey("applications.id"), index=True)
+    message_id: Mapped[str] = mapped_column(String(200))
+    thread_id: Mapped[str | None] = mapped_column(String(200))
+    sender_domain: Mapped[str | None] = mapped_column(String(255))
+    classification: Mapped[str] = mapped_column(String(30))
+    score: Mapped[float] = mapped_column(Float, default=0.0)
+    reasons: Mapped[list[str]] = mapped_column(JSON, default=list)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(20), default="SUGGESTED")  # SUGGESTED | CONFIRMED | DISMISSED
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EmailDraftModel(Base):
+    """A reply the user may copy and send themselves. CareerFlow never sends it."""
+
+    __tablename__ = "email_drafts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    link_id: Mapped[str] = mapped_column(ForeignKey("email_links.id"), index=True)
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CalendarWriteRequestModel(Base):
+    """A proposed external calendar change. Nothing is written until the user approves it."""
+
+    __tablename__ = "calendar_write_requests"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    interview_id: Mapped[str | None] = mapped_column(ForeignKey("interviews.id"))
+    action: Mapped[str] = mapped_column(String(10))  # create | update
+    event_id: Mapped[str | None] = mapped_column(String(200))  # for update
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="PENDING")  # PENDING|APPROVED|DONE|REJECTED|FAILED
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

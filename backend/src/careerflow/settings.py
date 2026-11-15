@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     # AI is optional: with AI_ENABLED=false every non-AI workflow keeps working.
     raw_payload_retention_days: int = 90  # 0 keeps raw source payloads forever
     listing_stale_days: int = 14  # unseen this long (while its source works) -> EXPIRED
+    # Integrations (all optional). The key encrypts OAuth tokens at rest; generate one with
+    # `python -m careerflow.infrastructure.security.crypto`.
+    integration_encryption_key: str = ""
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    oauth_redirect_uri: str = "http://localhost:8000/api/v1/integrations/google/callback"
     worker_poll_seconds: float = 2.0
     worker_lease_seconds: float = 60.0
     ai_enabled: bool = False
@@ -28,7 +34,8 @@ class Settings(BaseSettings):
     @property
     def redact_value_list(self) -> list[str]:
         values = [v.strip() for v in self.log_redact_values.split(",") if v.strip()]
-        return [*values, self.ai_api_key] if self.ai_api_key else values
+        secrets = [self.ai_api_key, self.google_client_secret, self.integration_encryption_key]
+        return [*values, *(s for s in secrets if s)]
 
     @property
     def cors_origin_list(self) -> list[str]:
