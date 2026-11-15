@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     log_redact_values: str = ""
     demo_mode: bool = False
     # AI is optional: with AI_ENABLED=false every non-AI workflow keeps working.
+    worker_poll_seconds: float = 2.0
+    worker_lease_seconds: float = 60.0
     ai_enabled: bool = False
     ai_provider: str = "fixture"
     ai_model: str = ""

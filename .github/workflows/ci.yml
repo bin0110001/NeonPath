@@ -7,6 +7,20 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: careerflow_test
+          POSTGRES_USER: careerflow
+          POSTGRES_PASSWORD: ci-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U careerflow" --health-interval 5s
+          --health-timeout 3s --health-retries 20
+    env:
+      # enables the PostgreSQL-only tests (task-queue concurrency)
+      TEST_DATABASE_URL: postgresql+psycopg://careerflow:ci-password@localhost:5432/careerflow_test
     defaults:
       run:
         working-directory: backend
@@ -76,6 +90,13 @@ jobs:
       - run: docker compose up -d --build
       - run: curl --fail --retry 20 --retry-connrefused http://localhost:8000/health/ready
       - run: curl --fail --retry 20 --retry-connrefused http://localhost:5173/
+      - name: Worker is running and healthy
+        run: |
+          for i in $(seq 1 30); do
+            state=$(docker compose ps --format '{{.Service}} {{.Health}}' worker)
+            echo "$state"; echo "$state" | grep -q healthy && exit 0; sleep 3
+          done
+          docker compose logs worker; exit 1
       - uses: actions/setup-node@v4
         with:
           node-version: 22

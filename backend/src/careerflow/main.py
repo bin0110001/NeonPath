@@ -8,6 +8,7 @@ from careerflow.api.jobs import router as jobs_router
 from careerflow.api.profile_items import router as profile_items_router
 from careerflow.api.profiles import router as profiles_router
 from careerflow.api.request_context import install_request_context
+from careerflow.api.tasks import router as tasks_router
 from careerflow.infrastructure.logging import configure_logging, secrets_from_url
 from careerflow.settings import get_settings
 
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
     install_request_context(app)
     app.include_router(health_router)
     app.include_router(config_router, prefix="/api/v1")
+    app.include_router(tasks_router, prefix="/api/v1")
     app.include_router(ai_router, prefix="/api/v1")
     app.include_router(profiles_router, prefix="/api/v1")
     app.include_router(profile_items_router, prefix="/api/v1")
