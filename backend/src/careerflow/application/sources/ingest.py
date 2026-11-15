@@ -59,6 +59,7 @@ class IngestResult:
     discovered: int = 0
     created: list[JobModel] = field(default_factory=list)
     updated: int = 0
+    skipped: int = 0  # rejected by the caller's ``accept`` filter before being stored
     attached_jobs: list[JobModel] = field(default_factory=list)  # exact duplicates: record added to these
     failed: int = 0
     errors: list[str] = field(default_factory=list)
@@ -100,7 +101,12 @@ class IngestionService:
 
     # -- core pipeline -------------------------------------------------------------------
 
-    def ingest(self, adapter: JobSourceAdapter, request: DiscoveryRequest | None = None) -> IngestResult:
+    def ingest(
+        self,
+        adapter: JobSourceAdapter,
+        request: DiscoveryRequest | None = None,
+        accept: Callable[[NormalizedJob], bool] | None = None,
+    ) -> IngestResult:
         request = request or DiscoveryRequest()
         result = IngestResult()
         limiter = RateLimiter(adapter.capabilities.rate_limit_per_minute, self._clock, self._sleep)
@@ -110,6 +116,9 @@ class IngestionService:
             try:
                 document = self._with_retry(partial(adapter.fetch, reference), limiter)
                 normalized = adapter.normalize(document)
+                if accept is not None and not accept(normalized):
+                    result.skipped += 1
+                    continue
                 job, outcome = self._persist(adapter.name, normalized, document)
             except SourceError as error:
                 result.failed += 1
@@ -156,6 +165,8 @@ class IngestionService:
             existing.raw_payload = document.raw_payload
             existing.source_url = job.source_url or existing.source_url
             existing.last_seen_at = now
+            if existing.job.source_status == "EXPIRED":  # it is listed again
+                existing.job.source_status = "ACTIVE"
             self.session.commit()
             return existing.job, UPDATED
         fingerprint = job_fingerprint(job.company, job.title, job.location_text)
@@ -200,7 +211,11 @@ class IngestionService:
     # -- configured sources -------------------------------------------------------------
 
     def run_source(
-        self, source_id: str, trigger: str = "manual", request: DiscoveryRequest | None = None
+        self,
+        source_id: str,
+        trigger: str = "manual",
+        request: DiscoveryRequest | None = None,
+        accept: Callable[[NormalizedJob], bool] | None = None,
     ) -> SourceRunModel:
         source = self.session.get(JobSourceModel, source_id)
         if source is None:
@@ -211,7 +226,7 @@ class IngestionService:
         with log_context(source_adapter=source.adapter):
             try:
                 adapter = build_adapter(source.adapter, source.config_json, self.http)
-                result = self.ingest(adapter, request)
+                result = self.ingest(adapter, request, accept)
             except SourceError as error:
                 self._finish(source, run, "FAILED", error=error)
                 logger.warning("source run failed", extra={"source": source.name, "error": str(error)})
@@ -222,6 +237,7 @@ class IngestionService:
                 run.discovered, run.created, run.updated, run.failed = (
                     result.discovered, len(result.created), result.updated, result.failed,
                 )  # fmt: skip
+                run.attached, run.skipped = len(result.attached_jobs), result.skipped
                 status = "SUCCEEDED" if not result.failed else "PARTIAL"
                 last = result.errors[-1] if result.errors else None
                 self._finish(source, run, status, message=last)

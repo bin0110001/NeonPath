@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { JobsHome } from "./features/jobs/JobsHome";
 import { DuplicateReview } from "./features/duplicates/DuplicateReview";
+import { SearchesPage } from "./features/searches/SearchesPage";
 import { TaskList } from "./features/tasks/TaskList";
 import { JobDetail } from "./features/jobs/JobDetail";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
@@ -92,11 +93,19 @@ export function App() {
         >
           Duplicates
         </button>
+        <button
+          className={activeTab === "searches" ? "active" : ""}
+          onClick={() => setActiveTab("searches")}
+        >
+          Searches
+        </button>
       </div>
       
       <section className="content-area">
         {activeTab === "tasks" ? (
           <TaskList />
+        ) : activeTab === "searches" ? (
+          <SearchesPage />
         ) : activeTab === "duplicates" ? (
           <DuplicateReview />
         ) : activeTab === "profiles" ? (

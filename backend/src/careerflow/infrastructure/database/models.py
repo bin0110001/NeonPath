@@ -369,6 +369,8 @@ class SourceRunModel(Base):
     discovered: Mapped[int] = mapped_column(Integer, default=0)
     created: Mapped[int] = mapped_column(Integer, default=0)
     updated: Mapped[int] = mapped_column(Integer, default=0)
+    attached: Mapped[int] = mapped_column(Integer, default=0)  # exact duplicates added as extra sources
+    skipped: Mapped[int] = mapped_column(Integer, default=0)  # rejected by the caller's filters
     failed: Mapped[int] = mapped_column(Integer, default=0)
     error_code: Mapped[str | None] = mapped_column(String(100))
     error_message: Mapped[str | None] = mapped_column(Text)
@@ -402,3 +404,63 @@ class JobMergeModel(Base):
     merged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     unmerged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     actor: Mapped[str | None] = mapped_column(String(100))
+
+
+class ScheduledTaskModel(Base):
+    """A persisted recurring schedule (plan section 18). The scheduler enqueues a task
+    onto the queue when ``next_run_at`` is due, under a row lock so no two schedulers
+    enqueue the same occurrence."""
+
+    __tablename__ = "scheduled_tasks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    key: Mapped[str] = mapped_column(String(200), unique=True)  # stable identity, e.g. "search:<id>"
+    task_type: Mapped[str] = mapped_column(String(100))
+    profile_id: Mapped[str | None] = mapped_column(ForeignKey("profiles.id"), index=True)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    interval_seconds: Mapped[int] = mapped_column(Integer)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    next_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    last_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_status: Mapped[str | None] = mapped_column(String(20))
+    last_task_id: Mapped[str | None] = mapped_column(String(36))
+
+
+class SearchDefinitionModel(Base):
+    """A profile's saved, source-independent search (plan section 17)."""
+
+    __tablename__ = "search_definitions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    source_id: Mapped[str] = mapped_column(ForeignKey("job_sources.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    query: Mapped[str | None] = mapped_column(String(300))
+    location: Mapped[str | None] = mapped_column(String(200))
+    # keywords_any / exclude_keywords: applied to discovered jobs before they are stored
+    filters_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    schedule_minutes: Mapped[int | None] = mapped_column(Integer)  # None = manual only
+    max_results: Mapped[int] = mapped_column(Integer, default=100)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SearchRunModel(Base):
+    __tablename__ = "search_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    search_id: Mapped[str] = mapped_column(ForeignKey("search_definitions.id"), index=True)
+    source_run_id: Mapped[str | None] = mapped_column(ForeignKey("source_runs.id"))
+    trigger: Mapped[str] = mapped_column(String(20), default="manual")
+    status: Mapped[str] = mapped_column(String(20), default="RUNNING")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    discovered: Mapped[int] = mapped_column(Integer, default=0)
+    created: Mapped[int] = mapped_column(Integer, default=0)
+    updated: Mapped[int] = mapped_column(Integer, default=0)
+    skipped: Mapped[int] = mapped_column(Integer, default=0)
+    failed: Mapped[int] = mapped_column(Integer, default=0)
+    error_code: Mapped[str | None] = mapped_column(String(100))
+    error_message: Mapped[str | None] = mapped_column(Text)

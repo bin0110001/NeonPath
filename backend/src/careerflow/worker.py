@@ -18,6 +18,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session, sessionmaker
 
+from careerflow.application.scheduling import SchedulerService
 from careerflow.infrastructure.database.models import JobModel, TaskModel
 from careerflow.infrastructure.database.session import create_database_engine
 from careerflow.infrastructure.logging import configure_logging, log_context, secrets_from_url
@@ -88,6 +89,46 @@ def _run_source(session: Session, task: TaskModel) -> dict[str, Any] | None:
     return {"run_id": run.id, "status": run.status, "created": run.created, "updated": run.updated}
 
 
+@handler("run_search")
+def _run_search(session: Session, task: TaskModel) -> dict[str, Any] | None:
+    from careerflow.application.searches import SearchService
+
+    run = SearchService(session).run(task.payload_json["search_id"], task.payload_json.get("trigger", "task"))
+    if run.status == "FAILED":
+        raise RuntimeError(f"search run failed: {run.error_code}: {run.error_message}")
+    return {"search_run_id": run.id, "status": run.status, "created": run.created, "failed": run.failed}
+
+
+@handler("check_expiration")
+def _check_expiration(session: Session, task: TaskModel) -> dict[str, Any] | None:
+    from careerflow.application.maintenance import MaintenanceService
+
+    report = MaintenanceService(session).check_expiration(get_settings().listing_stale_days)
+    return {"expired": report.expired, "revived": report.revived}
+
+
+@handler("prune_raw_payloads")
+def _prune(session: Session, task: TaskModel) -> dict[str, Any] | None:
+    from careerflow.application.maintenance import MaintenanceService
+
+    return {"pruned": MaintenanceService(session).prune_raw_payloads(get_settings().raw_payload_retention_days)}
+
+
+@handler("reevaluate_profile")
+def _reevaluate(session: Session, task: TaskModel) -> dict[str, Any] | None:
+    from careerflow.application.maintenance import MaintenanceService
+
+    return {"jobs": MaintenanceService(session).reevaluate_profile(task.payload_json["profile_id"])}
+
+
+def _record_schedule(session: Session, task: TaskModel, status: str) -> None:
+    from careerflow.application.scheduling import SchedulerService
+
+    key = (task.payload_json or {}).get("schedule_key")
+    if key and (status == "SUCCEEDED" or task.status == "FAILED"):  # final outcomes only
+        SchedulerService(session).record_outcome(str(key), status)
+
+
 def run_one(factory: sessionmaker[Session], worker_id: str, **queue_options: Any) -> bool:
     """Claim and execute at most one task. Returns True if a task was processed."""
     with factory() as session:
@@ -106,9 +147,11 @@ def run_one(factory: sessionmaker[Session], worker_id: str, **queue_options: Any
                 session.rollback()
                 logger.exception("task failed", extra={"task_type": task_type})
                 queue.fail(task, worker_id, error)
+                _record_schedule(session, task, "FAILED")
             else:
                 queue.complete(task, worker_id, metadata)
                 logger.info("task succeeded", extra={"task_type": task_type})
+                _record_schedule(session, task, "SUCCEEDED")
     return True
 
 
@@ -119,6 +162,8 @@ def run_worker(
     worker_id = worker_id or f"{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
     factory = sessionmaker(create_database_engine(), expire_on_commit=False)
     settings = get_settings()
+    with factory() as session:
+        SchedulerService(session).ensure_maintenance_schedules()
     logger.info("worker started", extra={"worker_id": worker_id})
     while not stop.is_set():
         try:
@@ -126,6 +171,8 @@ def run_worker(
         except OSError:
             pass  # the health file is best-effort (read-only filesystems)
         try:
+            with factory() as session:
+                SchedulerService(session).tick()  # enqueue due schedules (exactly once, row-locked)
             worked = run_one(factory, worker_id, lease_seconds=settings.worker_lease_seconds)
         except Exception:  # database unreachable etc.: keep the process alive and retry
             logger.exception("worker loop error")

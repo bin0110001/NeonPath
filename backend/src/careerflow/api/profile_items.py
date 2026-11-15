@@ -40,6 +40,7 @@ from careerflow.api.schemas.profiles import (
     SkillOutput,
     SkillUpdate,
 )
+from careerflow.application.maintenance import MaintenanceService
 from careerflow.application.profiles.service import (
     ProfileItemNotFoundError,
     ProfileNotFoundError,
@@ -84,9 +85,14 @@ def _crud(
     output_schema: type[BaseModel],
     create: bool = True,
     list_route: bool = True,
+    reevaluate: bool = False,
 ) -> None:
     """Register list/create/get/put/delete routes for one profile-owned record type."""
     base = f"/{{profile_id}}/{path}"
+
+    def changed(service: ProfileService, profile_id: str) -> None:
+        if reevaluate:  # evaluations depend on this data: refresh this profile's evaluations
+            MaintenanceService(service.session).request_reevaluation(profile_id)
 
     if list_route:
 
@@ -104,6 +110,7 @@ def _crud(
             service: ProfileService = Depends(get_service),
         ) -> Any:
             item = _guarded(lambda: service.add_profile_item(model, profile_id, payload.model_dump()))  # type: ignore[attr-defined]
+            changed(service, profile_id)
             return output_schema.model_validate(item, from_attributes=True)
 
     @router.get(base + "/{item_id}", response_model=output_schema, name=f"get_{path}")
@@ -123,6 +130,7 @@ def _crud(
         item = _guarded(
             lambda: service.update_profile_item(model, profile_id, item_id, payload.model_dump())  # type: ignore[attr-defined]
         )
+        changed(service, profile_id)
         return output_schema.model_validate(item, from_attributes=True)
 
     @router.delete(base + "/{item_id}", status_code=204, name=f"delete_{path}")
@@ -130,6 +138,7 @@ def _crud(
         profile_id: str, item_id: str, service: ProfileService = Depends(get_service)
     ) -> None:
         _guarded(lambda: service.delete_profile_item(model, profile_id, item_id))
+        changed(service, profile_id)
 
 
 # Experiences/achievements keep their list/create routes in profiles.py (ordering, link checks).
@@ -137,8 +146,8 @@ _crud("experiences", ExperienceModel, ExperienceInput, ExperienceOutput, create=
 _crud("achievements", AchievementModel, AchievementInput, AchievementOutput, create=False, list_route=False)
 _crud("education", EducationModel, EducationInput, EducationOutput)
 _crud("portfolio", PortfolioItemModel, PortfolioInput, PortfolioOutput)
-_crud("role-families", RoleFamilyModel, RoleFamilyInput, RoleFamilyOutput)
-_crud("role-targets", RoleTargetModel, RoleTargetInput, RoleTargetOutput)
+_crud("role-families", RoleFamilyModel, RoleFamilyInput, RoleFamilyOutput, reevaluate=True)
+_crud("role-targets", RoleTargetModel, RoleTargetInput, RoleTargetOutput, reevaluate=True)
 
 
 # -- preferences ---------------------------------------------------------------------------
@@ -161,6 +170,7 @@ def replace_search_preferences(
 ) -> SearchPreferenceOutput:
     require_profile(service, profile_id)
     row = service.replace_profile_item(SearchPreferenceModel, profile_id, payload.model_dump())
+    MaintenanceService(service.session).request_reevaluation(profile_id)
     return SearchPreferenceOutput.model_validate(row)
 
 
@@ -181,6 +191,7 @@ def replace_scoring_preferences(
 ) -> ScoringPreferenceOutput:
     require_profile(service, profile_id)
     row = service.replace_profile_item(ScoringPreferenceModel, profile_id, payload.model_dump())
+    MaintenanceService(service.session).request_reevaluation(profile_id)
     return ScoringPreferenceOutput.model_validate(row)
 
 
@@ -220,6 +231,7 @@ def add_skill(
     profile_id: str, payload: SkillInput, service: ProfileService = Depends(get_service)
 ) -> SkillOutput:
     link = _guarded(lambda: service.add_skill(profile_id, payload.model_dump()))
+    MaintenanceService(service.session).request_reevaluation(profile_id)
     skill = service.session.get(SkillModel, link.skill_id)
     assert skill is not None
     return _skill_output(service, link, skill)
@@ -237,6 +249,7 @@ def update_skill(
             profile_id, skill_id, payload.model_dump(exclude_unset=True)
         )
     )
+    MaintenanceService(service.session).request_reevaluation(profile_id)
     return _skill_output(service, link, skill)
 
 
@@ -245,6 +258,7 @@ def remove_skill(
     profile_id: str, skill_id: str, service: ProfileService = Depends(get_service)
 ) -> None:
     _guarded(lambda: service.remove_profile_skill(profile_id, skill_id))
+    MaintenanceService(service.session).request_reevaluation(profile_id)
 
 
 @router.get("/{profile_id}/skills/{skill_id}/aliases", response_model=list[str])
