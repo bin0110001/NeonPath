@@ -53,3 +53,7 @@ The plan is tracked in [careerflow_automation_implementation_plan.md](careerflow
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Demo data
+
+`python -m careerflow.seed` (run automatically by `backend/start.sh`) seeds two fictional profiles and four scenario jobs. It is idempotent: running it again changes nothing.
