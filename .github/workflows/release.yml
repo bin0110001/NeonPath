@@ -1,0 +1,159 @@
+name: Release
+
+# Builds OCI images for every push to main and every v* tag, scans them, generates SBOMs
+# and (for tags) release notes. Images are only PUBLISHED when the repository variable
+# PUBLISH_IMAGES is set to "true"; otherwise everything still builds, scans and attaches
+# artifacts but nothing is pushed to a registry.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/careerflow
+
+jobs:
+  images:
+    name: Build, scan and SBOM (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # only used when PUBLISH_IMAGES is "true"
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            context: backend
+            file: backend/Containerfile
+          - image: web
+            context: frontend
+            file: frontend/Containerfile
+    env:
+      PUBLISH: ${{ vars.PUBLISH_IMAGES == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+
+      - name: Log in to the registry (publishing only)
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build OCI image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: ${{ env.PUBLISH == 'true' }}
+          load: ${{ env.PUBLISH != 'true' }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Pick one tag to scan
+        id: scan-ref
+        run: echo "ref=$(echo '${{ steps.meta.outputs.tags }}' | head -n1)" >> "$GITHUB_OUTPUT"
+
+      - name: Vulnerability scan (report)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.scan-ref.outputs.ref }}
+          format: sarif
+          output: trivy-${{ matrix.image }}.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "0" # report only; the gate below fails the job on CRITICAL findings
+
+      - name: Vulnerability gate (CRITICAL fails the release)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.scan-ref.outputs.ref }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Upload scan results to code scanning
+        if: always() && hashFiles(format('trivy-{0}.sarif', matrix.image)) != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.image }}.sarif
+          category: trivy-${{ matrix.image }}
+
+      - name: Generate SBOM (SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.scan-ref.outputs.ref }}
+          format: spdx-json
+          output-file: sbom-${{ matrix.image }}.spdx.json
+          upload-artifact: false
+
+      - name: Keep reports with the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-reports-${{ matrix.image }}
+          path: |
+            sbom-${{ matrix.image }}.spdx.json
+            trivy-${{ matrix.image }}.sarif
+          if-no-files-found: error
+
+  release-notes:
+    name: Release notes (tags only)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-reports-*
+          path: reports
+          merge-multiple: true
+
+      - name: Create the release with generated notes and attached reports
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISHED: ${{ vars.PUBLISH_IMAGES == 'true' }}
+        run: |
+          if [ "$PUBLISHED" = "true" ]; then
+            notes="Images were published to GHCR. SBOMs and scan reports are attached."
+          else
+            notes="Images were built and scanned but not published (PUBLISH_IMAGES is not enabled). SBOMs and scan reports are attached."
+          fi
+          gh release create "$GITHUB_REF_NAME" reports/* \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes "$notes"
