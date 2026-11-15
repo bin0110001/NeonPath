@@ -261,9 +261,9 @@ export function Pipeline() {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: "1rem", overflowX: "auto" }}>
+      <div className="pipeline-board">
         {COLUMNS.map((column) => (
-          <div key={column} aria-label={`${column} column`} style={{ minWidth: "12rem" }}>
+          <div key={column} aria-label={`${column} column`} className="pipeline-column">
             <h3>
               {column} ({(columns[column] ?? []).length})
             </h3>

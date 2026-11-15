@@ -6,6 +6,18 @@ It works with no external services: AI, mailbox and calendar integrations are op
 
 **What you can do today**: keep several independent career profiles; import jobs by pasting text or from RSS/Atom, JSON and Greenhouse sources (on a schedule, per profile); see every job scored differently for each profile with explicit blockers and unknowns; review duplicates; move jobs through a per-profile workflow and pipeline board; get evidence-grounded tailoring and interview preparation; generate résumés as Markdown, HTML, DOCX or PDF; track applications, contacts, follow-ups and interviews with funnel metrics.
 
+## Screenshots
+
+All data is fictional (demo mode).
+
+| Profile editor | Job inbox and dashboard |
+|---|---|
+| ![Profile editor](docs/screenshots/01-profile-editor.png) | ![Job inbox](docs/screenshots/02-job-inbox.png) |
+| **The same job scored per profile, with reasons** | **Application preparation (approve before saving)** |
+| ![Evaluation comparison](docs/screenshots/03-evaluation-comparison.png) | ![Preparation](docs/screenshots/04-application-preparation.png) |
+| **Pipeline with validated moves** | **Optional AI settings** |
+| ![Pipeline](docs/screenshots/05-pipeline.png) | ![AI settings](docs/screenshots/06-ai-settings.png) |
+
 ## Start locally
 
 Copy the environment defaults, then start with either compatible Compose implementation:
