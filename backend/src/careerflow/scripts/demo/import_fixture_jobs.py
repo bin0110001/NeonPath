@@ -6,24 +6,24 @@ This script can be used to populate the system with sample job data for testing 
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-# Add the backend/src directory to the path so we can import careerflow modules
-backend_src_path = Path(__file__).parent.parent.parent / "backend" / "src"
-sys.path.insert(0, str(backend_src_path))
-
 from careerflow.application.jobs.service import JobService
+from careerflow.infrastructure.database.models import JobModel
 from careerflow.infrastructure.database.session import create_database_engine
 
 
-def load_fixture_jobs(fixture_path: Path) -> list[dict]:
+def load_fixture_jobs(fixture_path: Path) -> list[dict[str, Any]]:
     """Load job fixtures from a JSON file."""
-    with open(fixture_path, "r") as f:
-        return json.load(f)
+    with open(fixture_path) as f:
+        data: list[dict[str, Any]] = json.load(f)
+        return data
 
 
-def import_fixture_jobs(jobs_data: list[dict]) -> None:
+def import_fixture_jobs(jobs_data: list[dict[str, Any]]) -> None:
     """Import job data into the database."""
     with Session(create_database_engine()) as session:
         service = JobService(session)
@@ -66,7 +66,7 @@ def import_fixture_jobs(jobs_data: list[dict]) -> None:
         session.commit()
 
 
-def main():
+def main() -> None:
     """Main function to run the fixture import."""
     if len(sys.argv) < 2:
         print("Usage: python import_fixture_jobs.py <fixture_file.json>")
@@ -87,7 +87,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # Import here to avoid issues with path modification
-    from sqlalchemy import select
-    from careerflow.infrastructure.database.models import JobModel
     main()
