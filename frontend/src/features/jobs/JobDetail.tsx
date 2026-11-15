@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { ApplicationPrep } from "../applications/ApplicationPrep";
+import { ArtifactsPanel } from "../applications/ArtifactsPanel";
 import type {
   Job,
   JobEvaluation,
@@ -243,6 +244,7 @@ export function JobDetail() {
             </div>
 
             {jobId && <ApplicationPrep key={`${profileId}:${jobId}`} profileId={profileId} jobId={jobId} />}
+            {jobId && <ArtifactsPanel key={`art-${profileId}:${jobId}`} profileId={profileId} jobId={jobId} />}
 
             <div className="job-section">
               <h3>Compare profiles</h3>

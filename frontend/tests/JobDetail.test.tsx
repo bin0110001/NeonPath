@@ -39,6 +39,8 @@ function stubApi(state: { status: string }, posts: string[]) {
       if (url.includes("/status-history")) return json([]);
       if (url.includes("/evaluations/latest")) return json(null);
       if (url.endsWith("/ai/status")) return json({ available: true });
+      if (url.endsWith("/artifact-formats")) return json(["markdown", "pdf"]);
+      if (url.includes("/artifacts")) return json([]);
       if (url.includes("/comparison")) {
         return json([
           { id: "e1", job_id: "j1", profile_id: "p1", overall_score: 0.95, confidence: 1, blockers: [], strengths: ["Strong role alignment"], gaps: [], unknowns: [], transferable_matches: [], dimension_scores_json: {}, evaluator_version: "deterministic-v2.0", created_at: "2026-01-01T00:00:00Z" },

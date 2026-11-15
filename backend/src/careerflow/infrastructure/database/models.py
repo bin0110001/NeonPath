@@ -12,6 +12,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -618,3 +619,27 @@ class InterviewModel(Base):
     post_notes: Mapped[str | None] = mapped_column(Text)
     next_steps: Mapped[str | None] = mapped_column(Text)
     prep_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # saved preparation (see #37)
+
+
+class ArtifactModel(Base):
+    """A rendered document. ``input_json`` is the full generation input, retained so any
+    version can be regenerated and verified; ``content`` is the exact bytes delivered."""
+
+    __tablename__ = "artifacts"
+    __table_args__ = (
+        UniqueConstraint("profile_id", "job_id", "kind", "format", "version", name="uq_artifact_version"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    job_id: Mapped[str | None] = mapped_column(ForeignKey("jobs.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(30), default="resume")
+    format: Mapped[str] = mapped_column(String(20))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    renderer_version: Mapped[str] = mapped_column(String(30))
+    redacted: Mapped[bool] = mapped_column(Boolean, default=False)
+    input_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    content_sha256: Mapped[str] = mapped_column(String(64))
+    package_id: Mapped[str | None] = mapped_column(String(36))  # package the content was built from
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
