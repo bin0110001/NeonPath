@@ -76,6 +76,22 @@ jobs:
       - run: docker compose up -d --build
       - run: curl --fail --retry 20 --retry-connrefused http://localhost:8000/health/ready
       - run: curl --fail --retry 20 --retry-connrefused http://localhost:5173/
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: E2E (Playwright, against the freshly seeded stack)
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
       - if: always()
         run: docker compose down -v
 
