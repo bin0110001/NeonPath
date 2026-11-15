@@ -60,6 +60,64 @@ async function getJson<T>(url: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+interface Prep {
+  focus_areas: string[];
+  relevant_achievements: Array<{ id: string; title: string; why: string }>;
+  technical_topics: string[];
+  system_design_themes: string[];
+  ai_ml_topics: string[];
+  leadership_stories: Array<{ id: string; title: string }>;
+  weak_spots: string[];
+  questions_to_ask: string[];
+  warnings: string[];
+  ai_stories: Array<{ text: string; basis: string; evidence_ids: string[] }>;
+  ai_note: string | null;
+}
+
+function Section({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <strong>{title}</strong>
+      <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul>
+    </div>
+  );
+}
+
+function InterviewPrepView({ profileId, interviewId }: { profileId: string; interviewId: string }) {
+  const [prep, setPrep] = useState<Prep | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function load() {
+    setError(null);
+    const response = await fetch(`${base}/profiles/${profileId}/interviews/${interviewId}/prepare`, { method: "POST" });
+    if (!response.ok) {
+      setError(`Unable to prepare (${response.status})`);
+      return;
+    }
+    setPrep((await response.json()) as Prep);
+  }
+  return (
+    <div>
+      <button onClick={() => void load()}>Prepare</button>
+      {error && <p role="alert">{error}</p>}
+      {prep && (
+        <div aria-label="Interview preparation">
+          {prep.ai_note && <p>{prep.ai_note}</p>}
+          <Section title="Focus areas" items={prep.focus_areas} />
+          <Section title="Your relevant achievements" items={prep.relevant_achievements.map((a) => `${a.title} (${a.why})`)} />
+          <Section title="Technical topics" items={prep.technical_topics} />
+          <Section title="System design themes" items={prep.system_design_themes} />
+          <Section title="AI/ML topics" items={prep.ai_ml_topics} />
+          <Section title="Leadership stories" items={prep.leadership_stories.map((a) => a.title)} />
+          <Section title="Suggested stories (AI)" items={prep.ai_stories.map((s) => (s.basis === "evidence" ? s.text : `${s.text} [${s.basis}]`))} />
+          <Section title="Weak spots" items={[...prep.weak_spots, ...prep.warnings]} />
+          <Section title="Questions to ask" items={prep.questions_to_ask} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function MetricsPanel({ metrics }: { metrics: Metrics }) {
   const pct = metrics.response_rate === null ? "n/a" : `${Math.round(metrics.response_rate * 100)}%`;
   return (
@@ -194,6 +252,7 @@ export function Pipeline() {
               {overview.upcoming_interviews.map((i) => (
                 <li key={i.id}>
                   {i.type} · {i.scheduled_at ? new Date(i.scheduled_at).toLocaleString() : "unscheduled"}
+                  <InterviewPrepView profileId={profileId} interviewId={i.id} />
                 </li>
               ))}
             </ul>

@@ -17,7 +17,8 @@ function stub(calls: Array<[string, RequestInit | undefined]>, transitionStatus 
       }
       const body = url.endsWith("/profiles") ? [{ id: "p1", display_name: "Jordan" }]
         : url.endsWith("/pipeline") ? { columns: { APPLIED: [card] } }
-        : url.endsWith("/overview") ? { metrics, due_follow_ups: [{ id: "f1", application_id: "a1", due_at: "2026-01-01T00:00:00Z", type: "check_in", status: "OPEN" }], upcoming_interviews: [] }
+        : url.endsWith("/overview") ? { metrics, due_follow_ups: [{ id: "f1", application_id: "a1", due_at: "2026-01-01T00:00:00Z", type: "check_in", status: "OPEN" }], upcoming_interviews: [{ id: "i1", application_id: "a1", type: "system_design", scheduled_at: "2026-02-01T10:00:00Z" }] }
+        : url.endsWith("/interviews/i1/prepare") ? { focus_areas: ["Requirements, constraints and capacity estimates"], relevant_achievements: [{ id: "a1", title: "Scaled LLM platform", why: "matches the job" }], technical_topics: [], system_design_themes: [], ai_ml_topics: [], leadership_stories: [], weak_spots: ["No profile evidence for required skill: Rust"], questions_to_ask: ["What does success look like?"], warnings: [], ai_stories: [], ai_note: "AI is disabled" }
         : {};
       return { ok: true, status: 200, json: async () => body };
     }),
@@ -64,5 +65,14 @@ describe("Pipeline", () => {
     fireEvent.change(screen.getByLabelText("Follow-up due"), { target: { value: "2026-02-01T09:00" } });
     fireEvent.click(screen.getByRole("button", { name: "Add follow-up" }));
     await waitFor(() => expect(calls.some(([u, i]) => u.endsWith("/profiles/p1/follow-ups") && i?.method === "POST")).toBe(true));
+  });
+
+  it("prepares an upcoming interview and shows grounded suggestions and weak spots", async () => {
+    stub([]);
+    render(<MemoryRouter><Pipeline /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Prepare" }));
+    expect(await screen.findByText("Scaled LLM platform (matches the job)")).toBeInTheDocument();
+    expect(screen.getByText("No profile evidence for required skill: Rust")).toBeInTheDocument();
+    expect(screen.getByText("What does success look like?")).toBeInTheDocument();
   });
 });

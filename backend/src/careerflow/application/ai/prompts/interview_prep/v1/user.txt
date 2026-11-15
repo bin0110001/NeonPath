@@ -1,0 +1,12 @@
+Job title: $title
+Company: $company
+Interview type: $interview_type
+
+Job description:
+$description
+
+Candidate evidence (id: summary):
+$evidence
+
+Respond with JSON matching this JSON Schema:
+$schema

@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
+from careerflow.application.ai.config import build_client
+from careerflow.application.applications.interview_service import InterviewPrepService
 from careerflow.application.applications.resume import ResumeLinkError
 from careerflow.application.applications.tracking import Card, TrackingError, TrackingService
 from careerflow.application.jobs.service import JobNotFoundError
@@ -401,6 +403,15 @@ def update_interview(
     except _ERRORS as error:
         raise _fail(error) from error
     return InterviewOutput.model_validate(row)
+
+
+@router.post("/profiles/{profile_id}/interviews/{interview_id}/prepare", response_model=dict[str, Any])
+def prepare_interview(profile_id: str, interview_id: str, session: Session = Depends(get_session)) -> dict[str, Any]:
+    """Generate (and store on the interview) job-specific preparation grounded in the profile."""
+    try:
+        return InterviewPrepService(session, build_client(session)).prepare(profile_id, interview_id)
+    except _ERRORS as error:
+        raise _fail(error) from error
 
 
 @router.delete("/profiles/{profile_id}/interviews/{interview_id}", status_code=204)
