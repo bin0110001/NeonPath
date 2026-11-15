@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { JobsHome } from "./features/jobs/JobsHome";
 import { DuplicateReview } from "./features/duplicates/DuplicateReview";
+import { Pipeline } from "./features/tracking/Pipeline";
 import { ResumeVariants } from "./features/applications/ResumeVariants";
 import { AiSettings } from "./features/settings/AiSettings";
 import { SearchesPage } from "./features/searches/SearchesPage";
@@ -113,11 +114,21 @@ export function App() {
         >
           Resume
         </button>
+        <button
+          className={activeTab === "pipeline" ? "active" : ""}
+          onClick={() => setActiveTab("pipeline")}
+        >
+          Pipeline
+        </button>
       </div>
       
       <section className="content-area">
         {activeTab === "tasks" ? (
           <TaskList />
+        ) : activeTab === "pipeline" ? (
+          <Router>
+            <Pipeline />
+          </Router>
         ) : activeTab === "resume" ? (
           <ResumeVariants />
         ) : activeTab === "settings" ? (

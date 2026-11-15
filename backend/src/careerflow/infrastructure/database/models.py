@@ -4,7 +4,19 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -534,3 +546,75 @@ class ApplicationPackageModel(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class ApplicationModel(Base):
+    """Details of one profile's application to one job. Its *status* is the profile's
+    workflow status for the job (single source of truth), not stored here."""
+
+    __tablename__ = "applications"
+    __table_args__ = (UniqueConstraint("profile_id", "job_id", name="uq_application_profile_job"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    source: Mapped[str | None] = mapped_column(String(100))
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resume_variant_id: Mapped[str | None] = mapped_column(ForeignKey("resume_variants.id"))
+    resume_artifact_id: Mapped[str | None] = mapped_column(String(36))
+    cover_letter_artifact_id: Mapped[str | None] = mapped_column(String(36))
+    compensation_entered: Mapped[str | None] = mapped_column(String(200))
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ContactModel(Base):
+    __tablename__ = "contacts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    email: Mapped[str | None] = mapped_column(String(320))
+    company: Mapped[str | None] = mapped_column(String(200))
+    title: Mapped[str | None] = mapped_column(String(200))
+    profile_url: Mapped[str | None] = mapped_column(String(500))
+    notes: Mapped[str | None] = mapped_column(Text)
+
+
+class ApplicationContactModel(Base):
+    __tablename__ = "application_contacts"
+
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id"), primary_key=True)
+    contact_id: Mapped[str] = mapped_column(ForeignKey("contacts.id"), primary_key=True)
+    role: Mapped[str] = mapped_column(String(30), default="other")  # recruiter|hiring_manager|referral|interviewer|other
+
+
+class FollowUpModel(Base):
+    __tablename__ = "follow_ups"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id"), index=True)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    type: Mapped[str] = mapped_column(String(50), default="check_in")
+    status: Mapped[str] = mapped_column(String(20), default="OPEN")  # OPEN | DONE | DISMISSED
+    notes: Mapped[str | None] = mapped_column(Text)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class InterviewModel(Base):
+    __tablename__ = "interviews"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id"), index=True)
+    type: Mapped[str] = mapped_column(String(30), default="other")
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    duration_minutes: Mapped[int | None] = mapped_column(Integer)
+    participants: Mapped[list[str]] = mapped_column(JSON, default=list)
+    meeting_url: Mapped[str | None] = mapped_column(String(500))
+    notes: Mapped[str | None] = mapped_column(Text)  # preparation notes
+    outcome: Mapped[str] = mapped_column(String(20), default="PENDING")  # PENDING|PASSED|FAILED|UNKNOWN
+    post_notes: Mapped[str | None] = mapped_column(Text)
+    next_steps: Mapped[str | None] = mapped_column(Text)
+    prep_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # saved preparation (see #37)
