@@ -83,7 +83,7 @@ jobs:
         run: echo "ref=$(echo '${{ steps.meta.outputs.tags }}' | head -n1)" >> "$GITHUB_OUTPUT"
 
       - name: Vulnerability scan (report)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.scan-ref.outputs.ref }}
           format: sarif
@@ -93,7 +93,7 @@ jobs:
           exit-code: "0" # report only; the gate below fails the job on CRITICAL findings
 
       - name: Vulnerability gate (CRITICAL fails the release)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.scan-ref.outputs.ref }}
           format: table
