@@ -34,7 +34,7 @@ def test_ci_has_every_required_check() -> None:
     jobs = load("ci.yml")["jobs"]
     text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
     assert {"backend", "frontend", "compose", "migrations", "images", "podman"} <= set(jobs)
-    for needle in ("pytest", "ruff check", "mypy", "alembic check", "npm run typecheck", "npm run e2e", "podman compose up"):
+    for needle in ("pytest", "ruff check", "mypy", "alembic check", "npm run typecheck", "npm run e2e", "compose.podman-ci.yaml"):
         assert needle in text, needle
 
 

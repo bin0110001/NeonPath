@@ -159,10 +159,18 @@ def run_worker(
     worker_id = worker_id or f"{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
     factory = sessionmaker(create_database_engine(), expire_on_commit=False)
     settings = get_settings()
-    with factory() as session:
-        SchedulerService(session).ensure_maintenance_schedules()
     logger.info("worker started", extra={"worker_id": worker_id})
+    schedules_ready = False
     while not stop.is_set():
+        if not schedules_ready:
+            try:  # the API may still be migrating the database: retry instead of exiting
+                with factory() as session:
+                    SchedulerService(session).ensure_maintenance_schedules()
+                schedules_ready = True
+            except Exception:
+                logger.warning("database not ready for the worker yet; retrying")
+                stop.wait(poll_interval)
+                continue
         try:
             HEARTBEAT_FILE.touch()
         except OSError:

@@ -141,11 +141,11 @@ jobs:
           podman system service --time=0 unix:///tmp/podman.sock &
           for i in $(seq 1 20); do [ -S /tmp/podman.sock ] && break; sleep 1; done
           echo "DOCKER_HOST=unix:///tmp/podman.sock" >> "$GITHUB_ENV"
-      - run: podman compose config
-      - run: podman compose up -d --build
+      - run: podman compose -f compose.yaml -f compose.podman-ci.yaml config --quiet
+      - run: podman compose -f compose.yaml -f compose.podman-ci.yaml up -d --build
       - run: curl --fail --retry 30 --retry-delay 2 --retry-connrefused http://localhost:8000/health/ready
       - run: curl --fail --retry 30 --retry-delay 2 --retry-connrefused http://localhost:5173/
       - if: always()
-        run: podman compose logs --tail 50 || true
+        run: podman compose -f compose.yaml -f compose.podman-ci.yaml logs --tail 50 || true
       - if: always()
-        run: podman compose down -v
+        run: podman compose -f compose.yaml -f compose.podman-ci.yaml down -v || true  # rootless netns teardown can be refused on runners
