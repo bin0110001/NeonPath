@@ -1,0 +1,25 @@
+{
+  "meta": {"count": 2},
+  "data": {
+    "postings": [
+      {
+        "id": 9001,
+        "role": "Machine Learning Engineer",
+        "summary": "<p>Train and ship <b>models</b>.</p>",
+        "where": {"city": "Berlin, Germany"},
+        "pay": {"low": 90000, "high": 120000, "ccy": "EUR"},
+        "url": "https://jobs.example.org/9001",
+        "published": "2026-09-30T12:00:00Z"
+      },
+      {
+        "id": 9002,
+        "role": "Analytics Engineer",
+        "summary": "Own the metrics layer.",
+        "where": {"city": "Remote"},
+        "pay": {"low": 80000, "high": 100000, "ccy": "EUR"},
+        "url": "https://jobs.example.org/9002",
+        "published": "2026-10-01T12:00:00Z"
+      }
+    ]
+  }
+}

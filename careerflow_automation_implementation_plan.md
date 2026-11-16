@@ -10,20 +10,20 @@
 
 ## 1. Goals
 
-- [ ] Support multiple independent career profiles in one installation.
-- [ ] Discover jobs from pluggable sources.
-- [ ] Normalize all jobs into one canonical model.
-- [ ] Deduplicate the same opening found through multiple sources.
-- [ ] Evaluate each job independently against each profile.
-- [ ] Explain strengths, gaps, blockers, and transferable experience instead of relying on a single opaque score.
-- [ ] Recommend the best resume variant and accomplishments for a job.
-- [ ] Generate application-preparation material without inventing experience.
-- [ ] Track applications, contacts, follow-ups, and interviews.
-- [ ] Preserve job descriptions after listings disappear.
-- [ ] Run without an AI provider for core functionality.
-- [ ] Support both hosted and local/OpenAI-compatible LLM providers.
-- [ ] Be suitable as a public portfolio project using only fictional/demo data.
-- [ ] Run with both `podman compose` and `docker compose`.
+- [x] Support multiple independent career profiles in one installation.
+- [x] Discover jobs from pluggable sources.
+- [x] Normalize all jobs into one canonical model.
+- [x] Deduplicate the same opening found through multiple sources.
+- [x] Evaluate each job independently against each profile.
+- [x] Explain strengths, gaps, blockers, and transferable experience instead of relying on a single opaque score.
+- [x] Recommend the best resume variant and accomplishments for a job.
+- [x] Generate application-preparation material without inventing experience.
+- [x] Track applications, contacts, follow-ups, and interviews.
+- [x] Preserve job descriptions after listings disappear.
+- [x] Run without an AI provider for core functionality.
+- [x] Support both hosted and local/OpenAI-compatible LLM providers.
+- [x] Be suitable as a public portfolio project using only fictional/demo data.
+- [x] Run with both `podman compose` and `docker compose`.
 
 ### Explicit non-goals for early releases
 
@@ -702,21 +702,21 @@ Each stage must be independently testable and retryable.
 
 ### Phase 1
 
-- [ ] `ManualJobAdapter`
+- [x] `ManualJobAdapter`
   - paste description
   - optional URL
   - optional title/company metadata
-- [ ] `FixtureJobAdapter`
-- [ ] `RssJobAdapter`
-- [ ] `GenericJsonJobAdapter`
+- [x] `FixtureJobAdapter`
+- [x] `RssJobAdapter`
+- [x] `GenericJsonJobAdapter`
 
 ### Phase 2
 
-- [ ] Greenhouse adapter
-- [ ] Lever adapter
-- [ ] configurable approved company-careers adapter
-- [ ] email alert ingestion
-- [ ] additional authorized/public APIs
+- [x] Greenhouse adapter
+- [x] Lever adapter
+- [x] configurable approved company-careers adapter
+- [x] email alert ingestion
+- [x] additional authorized/public APIs
 
 ### Later
 
@@ -1219,12 +1219,12 @@ ScheduledTask
 
 Initial scheduled operations:
 
-- [ ] discover jobs
-- [ ] refresh jobs
-- [ ] check expiration
-- [ ] reevaluate jobs after profile changes
-- [ ] surface follow-ups
-- [ ] prune old raw payloads according to retention policy
+- [x] discover jobs
+- [x] refresh jobs
+- [x] check expiration
+- [x] reevaluate jobs after profile changes
+- [x] surface follow-ups
+- [x] prune old raw payloads according to retention policy
 
 Use a database lease/distributed lock so duplicate workers do not execute the same scheduled task.
 
@@ -1496,22 +1496,22 @@ docker compose up -d --build
 
 Requirements:
 
-- [ ] Follow the current Compose Specification.
-- [ ] Do not use an obsolete top-level Compose `version:` field.
-- [ ] Avoid Docker socket mounting.
-- [ ] Never require `/var/run/docker.sock`.
-- [ ] Avoid privileged containers.
-- [ ] Avoid host networking.
-- [ ] Avoid hard-coded UID assumptions.
-- [ ] Test rootless Podman.
-- [ ] Use named volumes where practical.
-- [ ] Add container health checks.
-- [ ] Use service DNS names for internal networking.
-- [ ] Pin major database versions.
-- [ ] Document SELinux volume considerations if bind mounts are introduced.
+- [x] Follow the current Compose Specification.
+- [x] Do not use an obsolete top-level Compose `version:` field.
+- [x] Avoid Docker socket mounting.
+- [x] Never require `/var/run/docker.sock`.
+- [x] Avoid privileged containers.
+- [x] Avoid host networking.
+- [x] Avoid hard-coded UID assumptions.
+- [x] Test rootless Podman.
+- [x] Use named volumes where practical.
+- [x] Add container health checks.
+- [x] Use service DNS names for internal networking.
+- [x] Pin major database versions.
+- [x] Document SELinux volume considerations if bind mounts are introduced.
 - [ ] Test Docker Desktop on Windows.
 - [ ] Test Podman on Linux.
-- [ ] Prefer OCI-compatible images/build behavior.
+- [x] Prefer OCI-compatible images/build behavior.
 
 Only create engine-specific override files if a real difference is discovered:
 
@@ -1680,17 +1680,17 @@ Use GitHub Actions initially.
 
 ## Pull requests
 
-- [ ] backend lint
-- [ ] backend type check
-- [ ] backend tests
-- [ ] frontend lint
-- [ ] frontend type check
-- [ ] frontend tests
-- [ ] frontend build
-- [ ] backend image build
-- [ ] frontend image build
-- [ ] Compose validation
-- [ ] migration validation
+- [x] backend lint
+- [x] backend type check
+- [x] backend tests
+- [x] frontend lint
+- [x] frontend type check
+- [x] frontend tests
+- [x] frontend build
+- [x] backend image build
+- [x] frontend image build
+- [x] Compose validation
+- [x] migration validation
 
 ## Main/tags
 
@@ -1788,25 +1788,25 @@ Seed jobs that score differently for these two profiles. The demo must visibly p
 
 **Goal:** Empty but production-shaped application with engineering guardrails.
 
-- [ ] Initialize repository.
-- [ ] Choose MIT or Apache-2.0 license.
-- [ ] Add README.
-- [ ] Add SECURITY.md.
-- [ ] Add CONTRIBUTING.md.
-- [ ] Create FastAPI backend.
-- [ ] Create React/TypeScript/Vite frontend.
-- [ ] Add PostgreSQL.
-- [ ] Add SQLAlchemy/Alembic.
-- [ ] Create `compose.yaml`.
-- [ ] Verify Podman startup.
+- [x] Initialize repository.
+- [x] Choose MIT or Apache-2.0 license.
+- [x] Add README.
+- [x] Add SECURITY.md.
+- [x] Add CONTRIBUTING.md.
+- [x] Create FastAPI backend.
+- [x] Create React/TypeScript/Vite frontend.
+- [x] Add PostgreSQL.
+- [x] Add SQLAlchemy/Alembic.
+- [x] Create `compose.yaml`.
+- [x] Verify Podman startup.
 - [ ] Verify Docker Desktop startup.
-- [ ] Add liveness/readiness endpoints.
-- [ ] Add backend tests.
-- [ ] Add frontend tests.
-- [ ] Add linting/type checking.
-- [ ] Add GitHub Actions.
-- [ ] Add `.env.example`.
-- [ ] Require no external secrets just to start.
+- [x] Add liveness/readiness endpoints.
+- [x] Add backend tests.
+- [x] Add frontend tests.
+- [x] Add linting/type checking.
+- [x] Add GitHub Actions.
+- [x] Add `.env.example`.
+- [x] Require no external secrets just to start.
 
 ### Acceptance criteria
 
@@ -1830,20 +1830,20 @@ start a healthy application from a clean clone.
 
 **Goal:** Generic, reusable profile model.
 
-- [ ] Profile CRUD.
-- [ ] Contact information.
-- [ ] Experience.
-- [ ] Achievement inventory.
-- [ ] Skills and aliases.
-- [ ] Education.
-- [ ] Portfolio items.
-- [ ] Role families.
-- [ ] Search preferences.
-- [ ] Scoring preferences.
-- [ ] Profile UI.
-- [ ] Versioned JSON import/export.
-- [ ] Fictional demo profiles.
-- [ ] Cross-profile isolation tests.
+- [x] Profile CRUD.
+- [x] Contact information.
+- [x] Experience.
+- [x] Achievement inventory.
+- [x] Skills and aliases.
+- [x] Education.
+- [x] Portfolio items.
+- [x] Role families.
+- [x] Search preferences.
+- [x] Scoring preferences.
+- [x] Profile UI.
+- [x] Versioned JSON import/export.
+- [x] Fictional demo profiles.
+- [x] Cross-profile isolation tests.
 
 ### Acceptance criteria
 
@@ -1855,21 +1855,21 @@ Two profiles can coexist with entirely different careers, targets, preferences, 
 
 **Goal:** End-to-end job workflow before external integrations.
 
-- [ ] Canonical Job model.
-- [ ] JobSourceRecord.
-- [ ] Manual description import.
-- [ ] Optional URL capture.
-- [ ] Fixture JSON import.
-- [ ] Job inbox UI.
-- [ ] Job detail page.
-- [ ] Workflow state machine.
-- [ ] Shortlist/reject/save actions.
-- [ ] Status history.
-- [ ] Raw snapshot retention.
+- [x] Canonical Job model.
+- [x] JobSourceRecord.
+- [x] Manual description import.
+- [x] Optional URL capture.
+- [x] Fixture JSON import.
+- [x] Job inbox UI.
+- [x] Job detail page.
+- [x] Workflow state machine.
+- [x] Shortlist/reject/save actions.
+- [x] Status history.
+- [x] Raw snapshot retention.
 
 ### Acceptance criteria
 
-A user can paste a job description, inspect it, and move it through the review workflow.
+A user can paste a job description, inspect it, and move it through the review workflow (shortlist, save, reject).
 
 ---
 
@@ -1877,17 +1877,17 @@ A user can paste a job description, inspect it, and move it through the review w
 
 **Goal:** Useful product even with AI disabled.
 
-- [ ] Title matching.
-- [ ] Role-family matching.
-- [ ] Location rules.
-- [ ] Remote rules.
-- [ ] Compensation rules.
-- [ ] Employment-type rules.
-- [ ] Keyword/skill matching.
-- [ ] Hard blockers.
-- [ ] Dimension scores.
-- [ ] Profile-specific weights.
-- [ ] Evaluation UI.
+- [x] Title matching.
+- [x] Role-family matching.
+- [x] Location rules.
+- [x] Remote rules.
+- [x] Compensation rules.
+- [x] Employment-type rules.
+- [x] Keyword/skill matching.
+- [x] Hard blockers.
+- [x] Dimension scores.
+- [x] Profile-specific weights.
+- [x] Evaluation UI.
 
 ### Acceptance criteria
 
@@ -1899,17 +1899,17 @@ The same job receives meaningfully different evaluations for two profiles.
 
 **Goal:** Add AI without vendor lock-in.
 
-- [ ] Define `LlmProvider`.
-- [ ] Define task-specific AI services.
-- [ ] Structured response validation.
-- [ ] Prompt registry/versioning.
-- [ ] `DisabledProvider`.
-- [ ] `FixtureProvider`.
-- [ ] One hosted provider.
-- [ ] Ollama/OpenAI-compatible provider.
-- [ ] Provider configuration UI.
-- [ ] Timeout/retry policy.
-- [ ] Usage metadata when available.
+- [x] Define `LlmProvider`.
+- [x] Define task-specific AI services.
+- [x] Structured response validation.
+- [x] Prompt registry/versioning.
+- [x] `DisabledProvider`.
+- [x] `FixtureProvider`.
+- [x] One hosted provider.
+- [x] Ollama/OpenAI-compatible provider.
+- [x] Provider configuration UI.
+- [x] Timeout/retry policy.
+- [x] Usage metadata when available.
 
 ### Acceptance criteria
 
@@ -1919,18 +1919,18 @@ Providers can be changed without changing domain code. All non-AI workflows stil
 
 ## Phase 5 — AI Job Analysis
 
-- [ ] Extract structured requirements.
-- [ ] Separate required/preferred qualifications.
-- [ ] Detect architecture expectations.
-- [ ] Detect leadership expectations.
-- [ ] Detect management expectations.
-- [ ] Infer likely seniority.
-- [ ] Identify transferable skills.
-- [ ] Link claims to profile evidence.
-- [ ] Identify unsupported claims.
-- [ ] Produce readable fit explanation.
-- [ ] Persist evaluation version.
-- [ ] Add manual reevaluate action.
+- [x] Extract structured requirements.
+- [x] Separate required/preferred qualifications.
+- [x] Detect architecture expectations.
+- [x] Detect leadership expectations.
+- [x] Detect management expectations.
+- [x] Infer likely seniority.
+- [x] Identify transferable skills.
+- [x] Link claims to profile evidence.
+- [x] Identify unsupported claims.
+- [x] Produce readable fit explanation.
+- [x] Persist evaluation version.
+- [x] Add manual reevaluate action.
 
 ### Acceptance criteria
 
@@ -1940,30 +1940,30 @@ Every significant positive claim points to profile evidence or is explicitly mar
 
 ## Phase 6 — Deduplication
 
-- [ ] Exact fingerprinting.
-- [ ] Probable matching.
-- [ ] Multiple-source preservation.
-- [ ] Duplicate-review UI.
-- [ ] Merge/unmerge.
-- [ ] Tests.
+- [x] Exact fingerprinting.
+- [x] Probable matching.
+- [x] Multiple-source preservation.
+- [x] Duplicate-review UI.
+- [x] Merge/unmerge.
+- [x] Tests.
 
 ---
 
 ## Phase 7 — Job Source Plugin Framework
 
-- [ ] Finalize adapter contract.
-- [ ] Source registry.
-- [ ] Per-source configuration.
-- [ ] Capability metadata.
-- [ ] Rate limiting.
-- [ ] Retry/backoff.
-- [ ] Run history.
-- [ ] Health state.
-- [ ] Fixture adapter.
-- [ ] RSS adapter.
-- [ ] Generic JSON adapter.
-- [ ] One ATS adapter.
-- [ ] Shared adapter contract tests.
+- [x] Finalize adapter contract.
+- [x] Source registry.
+- [x] Per-source configuration.
+- [x] Capability metadata.
+- [x] Rate limiting.
+- [x] Retry/backoff.
+- [x] Run history.
+- [x] Health state.
+- [x] Fixture adapter.
+- [x] RSS adapter.
+- [x] Generic JSON adapter.
+- [x] One ATS adapter.
+- [x] Shared adapter contract tests.
 
 ### Acceptance criteria
 
@@ -1973,30 +1973,30 @@ A new source can be added without modifying evaluation/workflow domain code.
 
 ## Phase 8 — Scheduled Discovery
 
-- [ ] Search definitions.
-- [ ] Persisted schedules.
-- [ ] Worker leases.
-- [ ] Scheduled searches.
-- [ ] Search run history.
-- [ ] Source error visibility.
-- [ ] `Run Now` action.
-- [ ] Per-profile schedules.
-- [ ] Job expiration refresh.
+- [x] Search definitions.
+- [x] Persisted schedules.
+- [x] Worker leases.
+- [x] Scheduled searches.
+- [x] Search run history.
+- [x] Source error visibility.
+- [x] `Run Now` action.
+- [x] Per-profile schedules.
+- [x] Job expiration refresh.
 
 ---
 
 ## Phase 9 — Application Preparation
 
-- [ ] Resume variants.
-- [ ] Application package model.
-- [ ] Recommend resume variant.
-- [ ] Recommend accomplishments.
-- [ ] Recommend skill ordering.
-- [ ] Suggest summary changes.
-- [ ] Cover-letter talking points.
-- [ ] Recruiter outreach draft.
-- [ ] Missing-evidence warnings.
-- [ ] Approval UI.
+- [x] Resume variants.
+- [x] Application package model.
+- [x] Recommend resume variant.
+- [x] Recommend accomplishments.
+- [x] Recommend skill ordering.
+- [x] Suggest summary changes.
+- [x] Cover-letter talking points.
+- [x] Recruiter outreach draft.
+- [x] Missing-evidence warnings.
+- [x] Approval UI.
 
 Do not automatically rewrite verified career facts.
 
@@ -2004,14 +2004,14 @@ Do not automatically rewrite verified career facts.
 
 ## Phase 10 — Application Tracking
 
-- [ ] Application records.
-- [ ] Applied date.
-- [ ] Associated resume artifact.
-- [ ] Contacts.
-- [ ] Notes.
-- [ ] Follow-ups.
-- [ ] Kanban/pipeline view.
-- [ ] Conversion metrics.
+- [x] Application records.
+- [x] Applied date.
+- [x] Associated resume artifact.
+- [x] Contacts.
+- [x] Notes.
+- [x] Follow-ups.
+- [x] Kanban/pipeline view.
+- [x] Conversion metrics.
 
 Useful metrics:
 
@@ -2031,14 +2031,14 @@ time to response
 
 ## Phase 11 — Interview Assistant
 
-- [ ] Interview records.
-- [ ] Job-specific prep.
-- [ ] Relevant-achievement suggestions.
-- [ ] Technical topic suggestions.
-- [ ] Architecture topic suggestions.
-- [ ] Questions to ask.
-- [ ] Post-interview notes.
-- [ ] Next-step tracking.
+- [x] Interview records.
+- [x] Job-specific prep.
+- [x] Relevant-achievement suggestions.
+- [x] Technical topic suggestions.
+- [x] Architecture topic suggestions.
+- [x] Questions to ask.
+- [x] Post-interview notes.
+- [x] Next-step tracking.
 
 ---
 
@@ -2055,11 +2055,11 @@ detect rejection/offer messages
 draft replies
 ```
 
-- [ ] Define `EmailProvider`.
-- [ ] Add OAuth implementation.
-- [ ] Match messages to applications.
-- [ ] Never auto-send by default.
-- [ ] Store external message IDs rather than unnecessary mailbox copies.
+- [x] Define `EmailProvider`.
+- [x] Add OAuth implementation.
+- [x] Match messages to applications.
+- [x] Never auto-send by default.
+- [x] Store external message IDs rather than unnecessary mailbox copies.
 
 ---
 
@@ -2074,39 +2074,39 @@ show upcoming interviews
 create prep reminders
 ```
 
-- [ ] Define `CalendarProvider`.
-- [ ] Match calendar events.
-- [ ] Prevent duplicates.
-- [ ] Require approval before creating/updating external events.
+- [x] Define `CalendarProvider`.
+- [x] Match calendar events.
+- [x] Prevent duplicates.
+- [x] Require approval before creating/updating external events.
 
 ---
 
 ## Phase 14 — Artifact Generation
 
-- [ ] `ArtifactRenderer` interface.
-- [ ] Markdown renderer.
-- [ ] HTML renderer.
-- [ ] DOCX renderer.
-- [ ] PDF renderer.
-- [ ] Artifact versioning.
-- [ ] Generation-input retention.
-- [ ] Download support.
-- [ ] Public/redacted render mode.
+- [x] `ArtifactRenderer` interface.
+- [x] Markdown renderer.
+- [x] HTML renderer.
+- [x] DOCX renderer.
+- [x] PDF renderer.
+- [x] Artifact versioning.
+- [x] Generation-input retention.
+- [x] Download support.
+- [x] Public/redacted render mode.
 
 ---
 
 ## Phase 15 — Public Demo Polish
 
-- [ ] Demo reset/seed command.
-- [ ] Architecture documentation.
-- [ ] ADRs.
-- [ ] Screenshots/GIF/video.
-- [ ] API documentation.
-- [ ] "How to write a job source adapter" guide.
-- [ ] "How to write an LLM provider" guide.
-- [ ] Scoring explanation.
-- [ ] Privacy/security documentation.
-- [ ] Podman setup guide.
+- [x] Demo reset/seed command.
+- [x] Architecture documentation.
+- [x] ADRs.
+- [x] Screenshots/GIF/video.
+- [x] API documentation.
+- [x] "How to write a job source adapter" guide.
+- [x] "How to write an LLM provider" guide.
+- [x] Scoring explanation.
+- [x] Privacy/security documentation.
+- [x] Podman setup guide.
 - [ ] Docker Desktop setup guide.
 - [ ] `v1.0.0` release.
 
@@ -2251,96 +2251,96 @@ A work item is complete only when:
 
 ## Epic — Foundation
 
-- [ ] Initialize monorepo.
-- [ ] FastAPI backend.
-- [ ] React/Vite frontend.
-- [ ] PostgreSQL + migrations.
-- [ ] Compose deployment.
-- [ ] Podman smoke test.
-- [ ] Docker Compose smoke test.
-- [ ] GitHub Actions CI.
-- [ ] Health/readiness endpoints.
+- [x] Initialize monorepo.
+- [x] FastAPI backend.
+- [x] React/Vite frontend.
+- [x] PostgreSQL + migrations.
+- [x] Compose deployment.
+- [x] Podman smoke test.
+- [x] Docker Compose smoke test.
+- [x] GitHub Actions CI.
+- [x] Health/readiness endpoints.
 
 ## Epic — Profiles
 
-- [ ] Profile domain model.
-- [ ] Career experience.
-- [ ] Achievement inventory.
-- [ ] Skills and aliases.
-- [ ] Education.
-- [ ] Portfolio items.
-- [ ] Role families.
-- [ ] Search preferences.
-- [ ] Scoring configuration.
-- [ ] JSON import/export.
-- [ ] Demo profiles.
+- [x] Profile domain model.
+- [x] Career experience.
+- [x] Achievement inventory.
+- [x] Skills and aliases.
+- [x] Education.
+- [x] Portfolio items.
+- [x] Role families.
+- [x] Search preferences.
+- [x] Scoring configuration.
+- [x] JSON import/export.
+- [x] Demo profiles.
 
 ## Epic — Jobs
 
-- [ ] Canonical job model.
-- [ ] Manual import.
-- [ ] Source records.
-- [ ] Job inbox.
-- [ ] Job detail.
-- [ ] Workflow state machine.
-- [ ] Status history.
-- [ ] Raw snapshot retention.
+- [x] Canonical job model.
+- [x] Manual import.
+- [x] Source records.
+- [x] Job inbox.
+- [x] Job detail.
+- [x] Workflow state machine.
+- [x] Status history.
+- [x] Raw snapshot retention.
 
 ## Epic — Evaluation
 
-- [ ] Deterministic filter engine.
-- [ ] Skill matching.
-- [ ] Salary normalization.
-- [ ] Location normalization.
-- [ ] Multi-dimensional scoring.
-- [ ] Fit explanation model.
-- [ ] Profile-specific evaluation.
-- [ ] Evaluation history.
+- [x] Deterministic filter engine.
+- [x] Skill matching.
+- [x] Salary normalization.
+- [x] Location normalization.
+- [x] Multi-dimensional scoring.
+- [x] Fit explanation model.
+- [x] Profile-specific evaluation.
+- [x] Evaluation history.
 
 ## Epic — AI
 
-- [ ] LLM provider interface.
-- [ ] Disabled provider.
-- [ ] Fixture provider.
-- [ ] Hosted provider.
-- [ ] Local/OpenAI-compatible provider.
-- [ ] Prompt registry.
-- [ ] Structured output validation.
-- [ ] Requirement extraction.
-- [ ] Transferable skill analysis.
-- [ ] Evidence-backed matching.
+- [x] LLM provider interface.
+- [x] Disabled provider.
+- [x] Fixture provider.
+- [x] Hosted provider.
+- [x] Local/OpenAI-compatible provider.
+- [x] Prompt registry.
+- [x] Structured output validation.
+- [x] Requirement extraction.
+- [x] Transferable skill analysis.
+- [x] Evidence-backed matching.
 
 ## Epic — Discovery
 
-- [ ] Job source interface.
-- [ ] Adapter registry.
-- [ ] Fixture adapter.
-- [ ] RSS adapter.
-- [ ] Generic JSON adapter.
-- [ ] ATS adapter.
-- [ ] Search definitions.
-- [ ] Scheduler.
-- [ ] Source run history.
-- [ ] Rate limiting.
-- [ ] Deduplication.
+- [x] Job source interface.
+- [x] Adapter registry.
+- [x] Fixture adapter.
+- [x] RSS adapter.
+- [x] Generic JSON adapter.
+- [x] ATS adapter.
+- [x] Search definitions.
+- [x] Scheduler.
+- [x] Source run history.
+- [x] Rate limiting.
+- [x] Deduplication.
 
 ## Epic — Applications
 
-- [ ] Resume variants.
-- [ ] Application packages.
-- [ ] Tailoring recommendations.
-- [ ] Application records.
-- [ ] Contacts.
-- [ ] Follow-ups.
-- [ ] Pipeline/Kanban.
+- [x] Resume variants.
+- [x] Application packages.
+- [x] Tailoring recommendations.
+- [x] Application records.
+- [x] Contacts.
+- [x] Follow-ups.
+- [x] Pipeline/Kanban.
 
 ## Epic — Interviews
 
-- [ ] Interview records.
-- [ ] Interview prep generator.
-- [ ] Achievement recommendations.
-- [ ] Interview notes.
-- [ ] Upcoming interview dashboard.
+- [x] Interview records.
+- [x] Interview prep generator.
+- [x] Achievement recommendations.
+- [x] Interview notes.
+- [x] Upcoming interview dashboard.
 
 ---
 

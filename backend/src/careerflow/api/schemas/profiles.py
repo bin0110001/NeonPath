@@ -1,7 +1,9 @@
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from careerflow.domain.evaluations.service import DIMENSIONS
 
 
 class ProfileInput(BaseModel):
@@ -85,6 +87,21 @@ class SkillInput(BaseModel):
 
 class SkillOutput(SkillInput):
     profile_id: str
+    skill_id: str | None = None
+
+
+class SkillUpdate(BaseModel):
+    category: str | None = None
+    proficiency: str | None = None
+    years_experience: float | None = None
+    last_used_year: int | None = None
+    evidence_notes: str | None = None
+    verified: bool | None = None
+    aliases: list[str] | None = None
+
+
+class AliasInput(BaseModel):
+    alias: str = Field(min_length=1, max_length=200)
 
 
 class EducationInput(BaseModel):
@@ -128,6 +145,19 @@ class RoleFamilyOutput(RoleFamilyInput):
     profile_id: str
 
 
+class RoleTargetInput(BaseModel):
+    title_pattern: str | None = None
+    include_keywords: list[str] = Field(default_factory=list)
+    exclude_keywords: list[str] = Field(default_factory=list)
+    target_seniority: list[str] = Field(default_factory=list)
+
+
+class RoleTargetOutput(RoleTargetInput):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    profile_id: str
+
+
 class SearchPreferenceInput(BaseModel):
     remote_preference: str = "NEUTRAL"
     allowed_countries: list[str] = Field(default_factory=list)
@@ -153,15 +183,68 @@ class SearchPreferenceOutput(SearchPreferenceInput):
 class ScoringPreferenceInput(BaseModel):
     weights: dict[str, float] = Field(default_factory=dict)
 
+    @field_validator("weights")
+    @classmethod
+    def _known_dimensions(cls, weights: dict[str, float]) -> dict[str, float]:
+        unknown = sorted(set(weights) - set(DIMENSIONS))
+        if unknown:
+            raise ValueError(f"unknown scoring dimensions: {', '.join(unknown)}")
+        if any(w < 0 for w in weights.values()):
+            raise ValueError("weights must not be negative")
+        return weights
+
 
 class ScoringPreferenceOutput(ScoringPreferenceInput):
     model_config = ConfigDict(from_attributes=True)
     profile_id: str
 
 
+class AchievementExport(AchievementInput):
+    """Export form: ``experience_id`` is replaced by a position in ``experiences``."""
+
+    experience_index: int | None = None
+
+
+class VariantExport(BaseModel):
+    """Resume variant with links expressed as positions in the same export."""
+
+    name: str
+    summary_strategy: str | None = None
+    preferred_skill_categories: list[str] = Field(default_factory=list)
+    template_name: str | None = None
+    role_family_index: int | None = None
+    experience_indexes: list[int] = Field(default_factory=list)
+    achievement_indexes: list[int] = Field(default_factory=list)
+
+
+class PackageExport(BaseModel):
+    job_id: str  # jobs are installation-wide; a package whose job is missing is skipped on import
+    variant_index: int | None = None
+    achievement_indexes: list[int] = Field(default_factory=list)
+    recommended_skill_order: list[str] = Field(default_factory=list)
+    summary_suggestion: str | None = None
+    tailoring_notes: list[str] = Field(default_factory=list)
+    missing_evidence: list[str] = Field(default_factory=list)
+    cover_letter_notes: list[str] = Field(default_factory=list)
+    outreach_draft: str | None = None
+    status: str = "DRAFT"
+    provenance_json: dict[str, Any] = Field(default_factory=dict)
+
+
 class ProfileExport(BaseModel):
-    schema_version: int = 1
+    """Versioned export envelope. v1 (profile/contact/experience/achievements) is still accepted."""
+
+    schema_version: int = 2
     profile: ProfileInput
     contact: ContactInput | None = None
     experiences: list[ExperienceInput] = Field(default_factory=list)
-    achievements: list[AchievementInput] = Field(default_factory=list)
+    achievements: list[AchievementExport] = Field(default_factory=list)
+    skills: list[SkillInput] = Field(default_factory=list)
+    education: list[EducationInput] = Field(default_factory=list)
+    portfolio: list[PortfolioInput] = Field(default_factory=list)
+    role_families: list[RoleFamilyInput] = Field(default_factory=list)
+    role_targets: list[RoleTargetInput] = Field(default_factory=list)
+    search_preferences: SearchPreferenceInput | None = None
+    scoring_preferences: ScoringPreferenceInput | None = None
+    resume_variants: list[VariantExport] = Field(default_factory=list)
+    application_packages: list[PackageExport] = Field(default_factory=list)

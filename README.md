@@ -2,7 +2,21 @@
 
 CareerFlow is a self-hosted job discovery, evaluation, and application-preparation platform. It automates organization and preparation while keeping people in control of external actions.
 
-This repository implements the runnable foundation and Profile Core. Job and AI workflows intentionally come in later vertical slices.
+It works with no external services: AI, mailbox and calendar integrations are optional, and nothing is ever sent or written externally without your explicit approval.
+
+**What you can do today**: keep several independent career profiles; import jobs by pasting text or from RSS/Atom, JSON and Greenhouse sources (on a schedule, per profile); see every job scored differently for each profile with explicit blockers and unknowns; review duplicates; move jobs through a per-profile workflow and pipeline board; get evidence-grounded tailoring and interview preparation; generate résumés as Markdown, HTML, DOCX or PDF; track applications, contacts, follow-ups and interviews with funnel metrics.
+
+## Screenshots
+
+All data is fictional (demo mode).
+
+| Profile editor | Job inbox and dashboard |
+|---|---|
+| ![Profile editor](docs/screenshots/01-profile-editor.png) | ![Job inbox](docs/screenshots/02-job-inbox.png) |
+| **The same job scored per profile, with reasons** | **Application preparation (approve before saving)** |
+| ![Evaluation comparison](docs/screenshots/03-evaluation-comparison.png) | ![Preparation](docs/screenshots/04-application-preparation.png) |
+| **Pipeline with validated moves** | **Optional AI settings** |
+| ![Pipeline](docs/screenshots/05-pipeline.png) | ![AI settings](docs/screenshots/06-ai-settings.png) |
 
 ## Start locally
 
@@ -42,14 +56,25 @@ npm run build
 
 For API hot reload, use `podman compose -f compose.yaml -f compose.dev.yaml up --build` (or Docker Compose). Run `npm run dev` in `frontend/` for frontend hot reload.
 
-## Architecture
+## Architecture and documentation
 
-The backend keeps domain, application, and infrastructure concerns separate. FastAPI is an inbound adapter; SQLAlchemy and PostgreSQL are infrastructure. Future API response schemas will remain separate from ORM models. See [architecture overview](docs/architecture/overview.md).
+The backend keeps domain, application and infrastructure concerns separate; FastAPI is an inbound adapter, SQLAlchemy and PostgreSQL are infrastructure, and API schemas are separate from ORM models.
+
+- [Architecture overview](docs/architecture/overview.md) and [diagram](docs/architecture/diagram.md)
+- [Decision records](docs/adr/README.md) (ADR-001 to ADR-014)
+- [API reference](docs/api/README.md) and [endpoint list](docs/api/endpoints.md)
+- [How jobs are scored](docs/guides/scoring.md) · [profiles](docs/architecture/profiles.md) · [evaluation](docs/architecture/evaluation.md)
+- Guides: [add a job source](docs/guides/write-a-job-source-adapter.md) · [add an LLM provider](docs/guides/write-an-llm-provider.md) · [Podman](docs/guides/podman.md) · [Docker Desktop](docs/guides/docker-desktop.md)
+- [Privacy and security](docs/security/privacy.md) · [SECURITY.md](SECURITY.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Status
 
-The plan is tracked in [careerflow_automation_implementation_plan.md](careerflow_automation_implementation_plan.md). Phase 0 and the initial Profile Core are implemented; future work should proceed with the Manual Job Inbox slice.
+The roadmap is in [careerflow_automation_implementation_plan.md](careerflow_automation_implementation_plan.md). All phases up to Phase 14 (artifact generation) are implemented; email and calendar integrations and the hosted-AI providers have been verified against recorded API responses only, not live services. See [release readiness](docs/release-readiness.md) for what remains before v1.0.0.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Demo data
+
+`python -m careerflow.seed` (run automatically by `backend/start.sh`) seeds two fictional profiles and four scenario jobs. It is idempotent: running it again changes nothing.

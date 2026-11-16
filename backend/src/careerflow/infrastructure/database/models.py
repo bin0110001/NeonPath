@@ -4,7 +4,20 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -144,6 +157,17 @@ class RoleFamilyModel(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class RoleTargetModel(Base):
+    __tablename__ = "role_targets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    title_pattern: Mapped[str | None] = mapped_column(String(200))
+    include_keywords: Mapped[list[str]] = mapped_column(JSON, default=list)
+    exclude_keywords: Mapped[list[str]] = mapped_column(JSON, default=list)
+    target_seniority: Mapped[list[str]] = mapped_column(JSON, default=list)
+
+
 class SearchPreferenceModel(Base):
     __tablename__ = "search_preferences"
 
@@ -169,3 +193,537 @@ class ScoringPreferenceModel(Base):
 
     profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), primary_key=True)
     weights: Mapped[dict[str, float]] = mapped_column(JSON, default=dict)
+
+
+# Job-related models
+class JobModel(Base):
+    __tablename__ = "jobs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    canonical_url: Mapped[str | None] = mapped_column(String(500))
+    title: Mapped[str] = mapped_column(String(200))
+    company: Mapped[str] = mapped_column(String(200))
+    company_domain: Mapped[str | None] = mapped_column(String(100))
+    description_text: Mapped[str] = mapped_column(Text)
+    description_html: Mapped[str | None] = mapped_column(Text)
+    location_text: Mapped[str | None] = mapped_column(String(200))
+    remote_type: Mapped[str | None] = mapped_column(String(32))  # REMOTE, HYBRID, ONSITE
+    employment_type: Mapped[str | None] = mapped_column(String(64))  # FULL_TIME, PART_TIME, CONTRACT, etc.
+    salary_min: Mapped[float | None] = mapped_column(Float)
+    salary_max: Mapped[float | None] = mapped_column(Float)
+    salary_currency: Mapped[str | None] = mapped_column(String(3))  # USD, EUR, etc.
+    salary_period: Mapped[str | None] = mapped_column(String(20))  # YEAR, MONTH, HOUR
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    discovered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    source_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_status: Mapped[str | None] = mapped_column(String(32))  # ACTIVE, EXPIRED, FILLED, etc.
+    fingerprint: Mapped[str | None] = mapped_column(String(64), index=True)  # For deduplication
+    # Set when this posting was merged into another canonical job (hidden from the inbox).
+    merged_into_id: Mapped[str | None] = mapped_column(ForeignKey("jobs.id"), index=True)
+    raw_metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # Processing lifecycle only (DISCOVERED ... READY_FOR_REVIEW). The review/application
+    # workflow is per profile: see ProfileJobModel.
+    status: Mapped[str] = mapped_column(String(32), default="DISCOVERED")
+
+    # Relationships
+    source_records: Mapped[list[JobSourceRecordModel]] = relationship(back_populates="job", cascade="all, delete-orphan")
+    requirements: Mapped[list[JobRequirementModel]] = relationship(back_populates="job", cascade="all, delete-orphan")
+    evaluations: Mapped[list[JobEvaluationModel]] = relationship(back_populates="job", cascade="all, delete-orphan")
+    status_history: Mapped[list[JobStatusHistoryModel]] = relationship(back_populates="job", cascade="all, delete-orphan")
+
+
+class JobSourceRecordModel(Base):
+    __tablename__ = "job_source_records"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    adapter: Mapped[str] = mapped_column(String(100))  # e.g., "manual", "rss", "greenhouse"
+    external_id: Mapped[str | None] = mapped_column(String(200))
+    source_url: Mapped[str | None] = mapped_column(String(500))
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    discovered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    job: Mapped[JobModel] = relationship(back_populates="source_records")
+
+
+class JobRequirementModel(Base):
+    __tablename__ = "job_requirements"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    type: Mapped[str] = mapped_column(String(32))  # skill, experience, education, etc.
+    normalized_text: Mapped[str] = mapped_column(String(200))
+    source_text: Mapped[str] = mapped_column(Text)
+    required_level: Mapped[str | None] = mapped_column(String(50))  # BEGINNER, INTERMEDIATE, EXPERT, etc.
+    category: Mapped[str | None] = mapped_column(String(100))  # Matches categories from spec
+    confidence: Mapped[float | None] = mapped_column(Float)  # 0.0 to 1.0
+    # Provenance: NULL extractor = entered manually; otherwise "ai" or "keyword".
+    extractor: Mapped[str | None] = mapped_column(String(20))
+    provider: Mapped[str | None] = mapped_column(String(100))
+    model_name: Mapped[str | None] = mapped_column(String(100))
+    prompt_version: Mapped[str | None] = mapped_column(String(50))
+
+    # Relationships
+    job: Mapped[JobModel] = relationship(back_populates="requirements")
+
+
+class JobEvaluationModel(Base):
+    __tablename__ = "job_evaluations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    evaluator_version: Mapped[str] = mapped_column(String(50))
+    model_provider: Mapped[str | None] = mapped_column(String(100))
+    model_name: Mapped[str | None] = mapped_column(String(100))
+    overall_score: Mapped[float] = mapped_column(Float)  # 0.0 to 1.0
+    confidence: Mapped[float | None] = mapped_column(Float)
+    dimension_scores_json: Mapped[dict[str, float]] = mapped_column(JSON, default=dict)
+    strengths: Mapped[list[str]] = mapped_column(JSON, default=list)
+    transferable_matches: Mapped[list[str]] = mapped_column(JSON, default=list)
+    gaps: Mapped[list[str]] = mapped_column(JSON, default=list)
+    blockers: Mapped[list[str]] = mapped_column(JSON, default=list)
+    unknowns: Mapped[list[str]] = mapped_column(JSON, default=list)
+    explanation: Mapped[str | None] = mapped_column(Text)
+    # Semantic evaluations: prompt used and the evidence-linked claims behind the text.
+    prompt_version: Mapped[str | None] = mapped_column(String(50))
+    claims_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    job: Mapped[JobModel] = relationship(back_populates="evaluations")
+
+
+class JobStatusHistoryModel(Base):
+    __tablename__ = "job_status_history"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    old_status: Mapped[str | None] = mapped_column(String(32))
+    new_status: Mapped[str] = mapped_column(String(32))
+    actor: Mapped[str | None] = mapped_column(String(100))  # user, system, etc.
+    reason: Mapped[str | None] = mapped_column(Text)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    job: Mapped[JobModel] = relationship(back_populates="status_history")
+
+
+class ProfileJobModel(Base):
+    """A profile's review/application workflow state for one job."""
+
+    __tablename__ = "profile_jobs"
+
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), primary_key=True)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), primary_key=True)
+    status: Mapped[str] = mapped_column(String(32), default="READY_FOR_REVIEW")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class TaskModel(Base):
+    """A queued unit of background work and its execution record (plan section 26)."""
+
+    __tablename__ = "tasks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    task_type: Mapped[str] = mapped_column(String(100), index=True)
+    profile_id: Mapped[str | None] = mapped_column(ForeignKey("profiles.id"), index=True)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="QUEUED", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=3)
+    run_after: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    lease_owner: Mapped[str | None] = mapped_column(String(100))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_code: Mapped[str | None] = mapped_column(String(100))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class JobSourceModel(Base):
+    """A configured job source (adapter + settings) with its health state."""
+
+    __tablename__ = "job_sources"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(200), unique=True)
+    adapter: Mapped[str] = mapped_column(String(100))
+    # Never put secrets here: use "<name>_env" keys that name an environment variable.
+    config_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_status: Mapped[str | None] = mapped_column(String(20))
+    health: Mapped[str] = mapped_column(String(20), default="UNKNOWN")
+    consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+
+class SourceRunModel(Base):
+    """One execution of a source: what it found and how it ended."""
+
+    __tablename__ = "source_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    source_id: Mapped[str] = mapped_column(ForeignKey("job_sources.id"), index=True)
+    trigger: Mapped[str] = mapped_column(String(20), default="manual")
+    status: Mapped[str] = mapped_column(String(20), default="RUNNING")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    discovered: Mapped[int] = mapped_column(Integer, default=0)
+    created: Mapped[int] = mapped_column(Integer, default=0)
+    updated: Mapped[int] = mapped_column(Integer, default=0)
+    attached: Mapped[int] = mapped_column(Integer, default=0)  # exact duplicates added as extra sources
+    skipped: Mapped[int] = mapped_column(Integer, default=0)  # rejected by the caller's filters
+    failed: Mapped[int] = mapped_column(Integer, default=0)
+    error_code: Mapped[str | None] = mapped_column(String(100))
+    error_message: Mapped[str | None] = mapped_column(Text)
+
+
+class JobDuplicateModel(Base):
+    """A suspected duplicate pair awaiting (or past) human review."""
+
+    __tablename__ = "job_duplicates"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)  # the newer posting
+    canonical_job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)  # the older one
+    classification: Mapped[str] = mapped_column(String(20))
+    score: Mapped[float] = mapped_column(Float)
+    reasons: Mapped[list[str]] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(20), default="PENDING")  # PENDING | MERGED | DISMISSED
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class JobMergeModel(Base):
+    """A reversible merge: remembers exactly which source records moved."""
+
+    __tablename__ = "job_merges"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    canonical_job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    merged_job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    source_record_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    merged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    unmerged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    actor: Mapped[str | None] = mapped_column(String(100))
+
+
+class ScheduledTaskModel(Base):
+    """A persisted recurring schedule (plan section 18). The scheduler enqueues a task
+    onto the queue when ``next_run_at`` is due, under a row lock so no two schedulers
+    enqueue the same occurrence."""
+
+    __tablename__ = "scheduled_tasks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    key: Mapped[str] = mapped_column(String(200), unique=True)  # stable identity, e.g. "search:<id>"
+    task_type: Mapped[str] = mapped_column(String(100))
+    profile_id: Mapped[str | None] = mapped_column(ForeignKey("profiles.id"), index=True)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    interval_seconds: Mapped[int] = mapped_column(Integer)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    next_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    last_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_status: Mapped[str | None] = mapped_column(String(20))
+    last_task_id: Mapped[str | None] = mapped_column(String(36))
+
+
+class SearchDefinitionModel(Base):
+    """A profile's saved, source-independent search (plan section 17)."""
+
+    __tablename__ = "search_definitions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    source_id: Mapped[str] = mapped_column(ForeignKey("job_sources.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    query: Mapped[str | None] = mapped_column(String(300))
+    location: Mapped[str | None] = mapped_column(String(200))
+    # keywords_any / exclude_keywords: applied to discovered jobs before they are stored
+    filters_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    schedule_minutes: Mapped[int | None] = mapped_column(Integer)  # None = manual only
+    max_results: Mapped[int] = mapped_column(Integer, default=100)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SearchRunModel(Base):
+    __tablename__ = "search_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    search_id: Mapped[str] = mapped_column(ForeignKey("search_definitions.id"), index=True)
+    source_run_id: Mapped[str | None] = mapped_column(ForeignKey("source_runs.id"))
+    trigger: Mapped[str] = mapped_column(String(20), default="manual")
+    status: Mapped[str] = mapped_column(String(20), default="RUNNING")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    discovered: Mapped[int] = mapped_column(Integer, default=0)
+    created: Mapped[int] = mapped_column(Integer, default=0)
+    updated: Mapped[int] = mapped_column(Integer, default=0)
+    skipped: Mapped[int] = mapped_column(Integer, default=0)
+    failed: Mapped[int] = mapped_column(Integer, default=0)
+    error_code: Mapped[str | None] = mapped_column(String(100))
+    error_message: Mapped[str | None] = mapped_column(Text)
+
+
+class AiConfigModel(Base):
+    """The user's AI provider selection. Secrets are never stored: the API key comes
+    from the AI_API_KEY environment variable."""
+
+    __tablename__ = "ai_config"
+
+    id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    provider: Mapped[str] = mapped_column(String(50))
+    model: Mapped[str] = mapped_column(String(200), default="")
+    endpoint: Mapped[str] = mapped_column(String(500), default="")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class ResumeTemplateModel(Base):
+    """A rendering template shared by all profiles (plan section 13)."""
+
+    __tablename__ = "resume_templates"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(200), unique=True)
+    format: Mapped[str] = mapped_column(String(20), default="markdown")
+    layout_config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    theme_config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class ResumeVariantModel(Base):
+    """A reusable selection of a profile's evidence for one kind of role."""
+
+    __tablename__ = "resume_variants"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    role_family_id: Mapped[str | None] = mapped_column(ForeignKey("role_families.id"))
+    template_id: Mapped[str | None] = mapped_column(ForeignKey("resume_templates.id"))
+    name: Mapped[str] = mapped_column(String(200))
+    summary_strategy: Mapped[str | None] = mapped_column(Text)
+    preferred_skill_categories: Mapped[list[str]] = mapped_column(JSON, default=list)
+    selected_experience_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    selected_achievement_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ApplicationPackageModel(Base):
+    """Approved preparation material for one profile applying to one job."""
+
+    __tablename__ = "application_packages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    resume_variant_id: Mapped[str | None] = mapped_column(ForeignKey("resume_variants.id"))
+    recommended_achievement_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    recommended_skill_order: Mapped[list[str]] = mapped_column(JSON, default=list)
+    summary_suggestion: Mapped[str | None] = mapped_column(Text)
+    tailoring_notes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    missing_evidence: Mapped[list[str]] = mapped_column(JSON, default=list)
+    cover_letter_notes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    outreach_draft: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="DRAFT")  # DRAFT | APPROVED
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    provenance_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class ApplicationModel(Base):
+    """Details of one profile's application to one job. Its *status* is the profile's
+    workflow status for the job (single source of truth), not stored here."""
+
+    __tablename__ = "applications"
+    __table_args__ = (UniqueConstraint("profile_id", "job_id", name="uq_application_profile_job"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
+    source: Mapped[str | None] = mapped_column(String(100))
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resume_variant_id: Mapped[str | None] = mapped_column(ForeignKey("resume_variants.id"))
+    resume_artifact_id: Mapped[str | None] = mapped_column(String(36))
+    cover_letter_artifact_id: Mapped[str | None] = mapped_column(String(36))
+    compensation_entered: Mapped[str | None] = mapped_column(String(200))
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ContactModel(Base):
+    __tablename__ = "contacts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    email: Mapped[str | None] = mapped_column(String(320))
+    company: Mapped[str | None] = mapped_column(String(200))
+    title: Mapped[str | None] = mapped_column(String(200))
+    profile_url: Mapped[str | None] = mapped_column(String(500))
+    notes: Mapped[str | None] = mapped_column(Text)
+
+
+class ApplicationContactModel(Base):
+    __tablename__ = "application_contacts"
+
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id"), primary_key=True)
+    contact_id: Mapped[str] = mapped_column(ForeignKey("contacts.id"), primary_key=True)
+    role: Mapped[str] = mapped_column(String(30), default="other")  # recruiter|hiring_manager|referral|interviewer|other
+
+
+class FollowUpModel(Base):
+    __tablename__ = "follow_ups"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id"), index=True)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    type: Mapped[str] = mapped_column(String(50), default="check_in")
+    status: Mapped[str] = mapped_column(String(20), default="OPEN")  # OPEN | DONE | DISMISSED
+    notes: Mapped[str | None] = mapped_column(Text)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class InterviewModel(Base):
+    __tablename__ = "interviews"
+    __table_args__ = (UniqueConstraint("profile_id", "external_event_id", name="uq_interview_external_event"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    application_id: Mapped[str] = mapped_column(ForeignKey("applications.id"), index=True)
+    type: Mapped[str] = mapped_column(String(30), default="other")
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    duration_minutes: Mapped[int | None] = mapped_column(Integer)
+    participants: Mapped[list[str]] = mapped_column(JSON, default=list)
+    meeting_url: Mapped[str | None] = mapped_column(String(500))
+    notes: Mapped[str | None] = mapped_column(Text)  # preparation notes
+    outcome: Mapped[str] = mapped_column(String(20), default="PENDING")  # PENDING|PASSED|FAILED|UNKNOWN
+    post_notes: Mapped[str | None] = mapped_column(Text)
+    next_steps: Mapped[str | None] = mapped_column(Text)
+    prep_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # saved preparation (see #37)
+    # Set when imported from a calendar: re-importing the same event never creates a second row.
+    external_event_id: Mapped[str | None] = mapped_column(String(200))
+
+
+class ArtifactModel(Base):
+    """A rendered document. ``input_json`` is the full generation input, retained so any
+    version can be regenerated and verified; ``content`` is the exact bytes delivered."""
+
+    __tablename__ = "artifacts"
+    __table_args__ = (
+        UniqueConstraint("profile_id", "job_id", "kind", "format", "version", name="uq_artifact_version"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    job_id: Mapped[str | None] = mapped_column(ForeignKey("jobs.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(30), default="resume")
+    format: Mapped[str] = mapped_column(String(20))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    renderer_version: Mapped[str] = mapped_column(String(30))
+    redacted: Mapped[bool] = mapped_column(Boolean, default=False)
+    input_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    content_sha256: Mapped[str] = mapped_column(String(64))
+    package_id: Mapped[str | None] = mapped_column(String(36))  # package the content was built from
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class IntegrationAccountModel(Base):
+    """A connected external account. Tokens are stored encrypted and never returned by the API."""
+
+    __tablename__ = "integration_accounts"
+    __table_args__ = (UniqueConstraint("profile_id", "kind", name="uq_integration_profile_kind"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))  # email | calendar
+    provider: Mapped[str] = mapped_column(String(30))
+    enc_access_token: Mapped[str] = mapped_column(Text)
+    enc_refresh_token: Mapped[str | None] = mapped_column(Text)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    scopes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    allow_writes: Mapped[bool] = mapped_column(Boolean, default=False)
+    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class OAuthStateModel(Base):
+    """A pending OAuth authorisation (state + PKCE verifier, encrypted). Short-lived."""
+
+    __tablename__ = "oauth_states"
+
+    state: Mapped[str] = mapped_column(String(100), primary_key=True)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"))
+    kind: Mapped[str] = mapped_column(String(20))
+    enc_verifier: Mapped[str] = mapped_column(Text)
+    allow_writes: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EmailLinkModel(Base):
+    """A recognised message: external ids and routing facts only, never the mailbox copy."""
+
+    __tablename__ = "email_links"
+    __table_args__ = (UniqueConstraint("profile_id", "message_id", name="uq_email_link_message"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    application_id: Mapped[str | None] = mapped_column(ForeignKey("applications.id"), index=True)
+    message_id: Mapped[str] = mapped_column(String(200))
+    thread_id: Mapped[str | None] = mapped_column(String(200))
+    sender_domain: Mapped[str | None] = mapped_column(String(255))
+    classification: Mapped[str] = mapped_column(String(30))
+    score: Mapped[float] = mapped_column(Float, default=0.0)
+    reasons: Mapped[list[str]] = mapped_column(JSON, default=list)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(20), default="SUGGESTED")  # SUGGESTED | CONFIRMED | DISMISSED
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EmailDraftModel(Base):
+    """A reply the user may copy and send themselves. CareerFlow never sends it."""
+
+    __tablename__ = "email_drafts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    link_id: Mapped[str] = mapped_column(ForeignKey("email_links.id"), index=True)
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CalendarWriteRequestModel(Base):
+    """A proposed external calendar change. Nothing is written until the user approves it."""
+
+    __tablename__ = "calendar_write_requests"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), index=True)
+    interview_id: Mapped[str | None] = mapped_column(ForeignKey("interviews.id"))
+    action: Mapped[str] = mapped_column(String(10))  # create | update
+    event_id: Mapped[str | None] = mapped_column(String(200))  # for update
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="PENDING")  # PENDING|APPROVED|DONE|REJECTED|FAILED
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

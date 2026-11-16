@@ -1,0 +1,19 @@
+# CI-only override for the rootless Podman smoke job (ADR-010: only add an engine-specific
+# file when a real difference is found). Podman evaluates healthchecks with systemd timers,
+# which do not exist on a GitHub runner, so containers would never turn "healthy". Services
+# here wait for their dependencies to *start*; start.sh and the worker retry until the
+# database is ready, and the job's curl steps verify real readiness. Local Podman users do
+# not need this file.
+services:
+  api:
+    depends_on:
+      db:
+        condition: service_started
+  worker:
+    depends_on:
+      api:
+        condition: service_started
+  web:
+    depends_on:
+      api:
+        condition: service_started

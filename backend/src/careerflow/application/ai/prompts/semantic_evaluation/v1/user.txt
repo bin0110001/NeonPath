@@ -1,0 +1,14 @@
+Job title: $title
+Company: $company
+
+Job description:
+$description
+
+Extracted requirements:
+$requirements
+
+Candidate evidence (id: summary):
+$evidence
+
+Respond with JSON matching this JSON Schema:
+$schema

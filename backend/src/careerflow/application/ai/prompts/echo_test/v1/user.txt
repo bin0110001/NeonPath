@@ -1,0 +1,5 @@
+Echo the text in a JSON object.
+
+Text: $text
+
+Schema: $schema
